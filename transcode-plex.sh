@@ -47,7 +47,7 @@ PRESET="Apple 1080p30 Surround"              # HandBrakeCLI preset determines ou
 SPEED="veryfast"                             # Faster settings give theoretically larger filesizes and shorter transcode times; They do not affect quality.
                                              # In my own tests, however, despite using simpler, faster algorithms, veryfast actually produces smaller files.
 					     # The only recommended ENCODER_PRESET values are slow, medium, fast, faster, fastest, veryfast.
-MAXSIZE=720                                  # Sets an upper limit for height; Recommended are those that give a 16:9 ratio, 1080, 720, 576, 540, 360
+MAXSIZE=1080                                 # Sets an upper limit for height; Recommended are those that give a 16:9 ratio, 1080, 720, 576, 540, 360
 ALLOW_EAC3=1                                 # EXPERIMENTAL: Enables preservation of Dolby Digital Plus (where available) in a manner playable by AppleTV 4.
 EXTRAS=(--optimize --subtitle 1)             # Extra options set here.  Read HandBrakeCLI documentation before editing!
 
