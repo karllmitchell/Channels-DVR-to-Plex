@@ -1,0 +1,85 @@
+## DEFAULT SETTINGS FOR transcode-plex.sh
+# Install in one of the locations that transcode-plex.sh searches as "prefs",
+#  or alternatively keep a copy called "transcode-plex.sh" in your current working folder to over-ride.
+# The preferences file is normally called "prefs", and is searched for within these locations in order:
+#   ${BASH_SOURCE%/*}/transcode-plex/prefs
+#   ~/.transcode-plex/prefs
+#   ${BASH_SOURCE%/*}/../lib/transcode-plex/prefs
+#   ~/Library/Application Support/transcode-plex/prefs
+#   /Library/Application Support/transcode-plex/prefs
+#   /var/lib/transcode-plex/prefs
+#   /usr/local/lib/transcode-plex/prefs
+# All of the options set within the preferences file can be over-riden by adding them as command-line arguments:
+#   e.g. transcode-plex.sh CHAPTERS=1 COMTRIM=0 FIND_METHOD="-mtime -2" 
+
+SOURCE_DIR="/mnt/dvr/channels/TV"            # Location for source video recordings.  Should be the TV sub-directory of channels-dvr folders.
+SOURCE_TYPE="ts|mkv|mpg"                     # File extension used, could be "ts" or "ts|mpg|mpeg".  Avoid "m4v" if delivering to same directory..
+DEST_DIR="/mnt/network/Plex/TV Shows"        # Desination for video recordings.  Subdirectory structure within SOURCE_DIR duplicated too..
+WORKING_DIR="/mnt/dvr/tmp"                   # If left blank, an arbitrary temp directory will be used.
+SOURCE_FILE=""                               # If filled, specifies a particular filename and only searches for that file.  Useful for manual input.
+BACKUP_DIR=""                                # Location to deposit files if server offline.  Delete if not needed.
+CHAPTERS=1                                   # Set to mark commercials as chapters.  Doesn't work if COMTRIM enabled.
+COMTRIM=0                                    # Set to 1 to trim commercials from output file.  Takes priority over comskip.  Use at own risk.
+DELETE_ORIG=0                                # Set to 1 to delete original files and 0 to disable.
+TEMP_COPY=0                                  # Copies input file to the working directory first; useful when running over erratic networks.
+LANG="en-US"                                 # Force MP4 file tracks to have a language; Necessary for AppleTV 4 to see chapters.			
+FIND_METHOD="-mtime -1"                      # See man find for usage.  -mtime -1 signifies the last 24 hours.  Leave blank if you want all files.  
+NICE=10                                      # For intensive tasks, set a "niceness" between 0 and 19, so as not to lock up the machine.
+VERBOSE=1                                    # 0 = quiet; 1 = normal; 2 = detailed.
+DEBUG=0                                      # For development.  Does not delete temporary directory (in WORKING_DIR) after use.  
+					     
+# Encoder presets, usually best to keep it simple.  
+PRESET="Apple 1080p30 Surround"              # HandBrakeCLI preset determines output default quality/resolution, run HandBrakeCLI -z to show list
+                                             # In older versions of HandBrakeCLI, this would be "AppleTV 3".  For old/slow clients use "Apple 720p30 Surround".
+					     # In this instance, this is more for setting quality and player performance requirements.  Size can be changed below.
+SPEED="veryfast"                             # Faster settings give theoretically larger filesizes and shorter transcode times; They do not affect quality.
+                                             # In my own tests, however, despite using simpler, faster algorithms, veryfast actually produces smaller files.
+					     # The only recommended ENCODER_PRESET values are slow, medium, fast, faster, fastest, veryfast.
+MAXSIZE=1080                                 # Sets an upper limit for height; Recommended are those that give a 16:9 ratio, 1080, 720, 576, 540, 360
+ALLOW_EAC3=1                                 # EXPERIMENTAL: Enables preservation of Dolby Digital Plus (where available) in a manner playable by AppleTV 4.
+EXTRAS=(--optimize --subtitle 1)             # Extra options set here.  Read HandBrakeCLI documentation before editing!
+
+# Locations of critical programs.  These can be shortened to just the name, but then default version discovered by "which" will be used. 
+HANDBRAKE_CLI="/usr/local/bin/HandBrakeCLI"  # Location of HandBrakeCLI binary.  Absolutely necessary
+MP4BOX_CLI="/usr/bin/MP4Box"                 # Location of MP4Box binary (part of gpac package).  Only required if CHAPTERS=1.
+FFMPEG_CLI="/usr/bin/ffmpeg"                 # Location of ffmpeg binary.  Only required if COMTRIM=1.
+CAFFEINATE_CLI=""                            # Location of caffeinate binary.  Prevents system from sleeping if present.  Unnecessary for always-on systems.
+
+# If you want phone notifications with IFTTT, enter your IFTTT_MAKER_KEY here, and be sure to have curl on your system
+# Also, set up an IFTTT MAKER Applet event called "TVEvent" with a "Value1." notification format.
+IFTTT_MAKER_KEY=""     # Set to "" if you do not want IFTTT Maker notifications.  A 22-digit code.
+CURL_CLI="/usr/bin/curl"                     # Location of curl binary.  Only required if using IFTTT notifications.
+# WARNING: Do not change these two IFTTT system variables:
+IFTTT_TYPE="Content-Type: application/json"
+IFTTT_MAKER="https://maker.ifttt.com/trigger/{TVevent}/with/key/${IFTTT_MAKER_KEY}"
+
+# WARNING: Most people should leave PARALLEL_CLI blank
+# GNU parallel allows you to control the number of parallel transcoding jobs or farm out to other machines (target directory should be the same)
+# Anyone using this will should read  GNU parallel documentation sufficient to set up their remote servers. Multiple PARALLEL_OPTS arguments should be added:
+#   The memfree option requires a recent version of parallel >=2015, and should be tailored based on experience
+#   If set up correctly, you can add multiple servers, e.g. "-S $SERVER1 -S $SERVER2", here too.  Remember to set ssh keys for password-free login.
+#   --memfree 700M (RAM needed) is appropriate for default settings.  Some other quantities below:
+#      "Apple 1080p30 Surround", veryfast, 1080i input:  700M
+#      "Apple 1080p30 Surround", veryfast, 720p input:  425M
+#      "Apple 1080p30 Surround", veryfast, 1080i input, MAXSIZE=720:  550M
+# T.B.D. etherwake to allow Wake-on-LAN functionality
+# T.B.D. send files over GNU parallel (for erratic networks
+PARALLEL_CLI=""             # Location of GNU parallel binary.  Note that with -j 1 this will run like a normal non-parallel task.  
+PARALLEL_OPTS=(-j 1 --nice $NICE --memfree 700M) 
+
+# When multiple TV shows or movies have the same name, they need to be identified by year as well in order for Plex to identify them.
+# Showname substitutions go below, using the format examples:
+function showname_clean {
+  local show=""
+  case "$1" in
+    "Bull") show="Bull (2016)";;
+    "Conviction") show="Conviction (2016)";;
+    "Doctor Who") show="Doctor Who (2005)";;
+    "Once Upon a Time") show="Once Upon a Time (2011)";;
+    "Poldark on Masterpiece") show="Poldark (2015)";;
+    "Poldark") show="Poldark (2015)";;
+    *) show="${1}";;
+  esac
+  echo "$show"
+}
+export -f showname_clean
