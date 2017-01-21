@@ -70,8 +70,12 @@ IFTTT_MAKER="https://maker.ifttt.com/trigger/{TVevent}/with/key/${IFTTT_MAKER_KE
 # Anyone using this will should read  GNU parallel documentation sufficient to set up their remote servers. Multiple PARALLEL_OPTS arguments should be added:
 #   The memfree option requires a recent version of parallel >=2015, and should be tailored based on experience
 #   If set up correctly, you can add multiple servers, e.g. "-S $SERVER1 -S $SERVER2", here too.  Remember to set ssh keys for password-free login.
-#   --memfree 700M (RAM needed) is appropriate for default settings ("Apple 1080p30 Surround", veryfast, MAXSIZE=1080).  MAXSIZE=720 is more like 425M.
-# T.B.D. etherwake to allow Wake-on-LAN functionality, and something to allow waiting for available cores.
+#   --memfree 700M (RAM needed) is appropriate for default settings.  Some other quantities below:
+#      "Apple 1080p30 Surround", veryfast, 1080i input:  700M
+#      "Apple 1080p30 Surround", veryfast, 720p input:  425M
+#      "Apple 1080p30 Surround", veryfast, 1080i input, MAXSIZE=720:  550M
+# T.B.D. etherwake to allow Wake-on-LAN functionality
+# T.B.D. send files over GNU parallel (for erratic networks
 PARALLEL_CLI=""             # Location of GNU parallel binary.  Note that with -j 1 this will run like a normal non-parallel task.  
 PARALLEL_OPTS=(-j 1 --nice $NICE --memfree 700M) 
 
@@ -96,6 +100,13 @@ function showname_clean {
 }
 
 ## ---------- DO NOT EDIT BELOW THIS LINE UNLESS YOU KNOW WHAT YOU'RE DOING ---------- ##
+
+if [ $(uname) == "Darwin" ]; then
+  alias find="find -E"
+  REGEXTYPE=""
+else
+  REGEXTYPE="posix-extended" 
+fi
 
 ## DEFAULT SETTINGS OVER-RIDES
 # You can over-ride any of the above settings by adding them as command line arguments
@@ -134,6 +145,7 @@ if [ $PARALLEL_CLI ]; then
   if [ ! -f "${PARALLEL_CLI}" ]; then PARALLEL_CLI=$(which ${program}) || (notify_me "${program} missing"; exit 9); fi
 fi
 
+if [ ! $(which realpath) ] ; then alias realpath='[[ $1 = /* ]] && echo "$1" || printf "%s/${1#./}" ${PWD}'; echo "aliased"; fi
 
 ## REPORT PROGRESS, OPTIONALLY VIA PHONE NOTIFICATIONS
 # Customise if you have an alternative notification system
@@ -157,19 +169,22 @@ function notify_me {
 }
 export -f notify_me
 
+function fullpath() {
+    [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"
+}
         
 ## CREATE AND GO TO A TEMPORARY WORKING DIRECTORY
 cwd=$(pwd)
 if [ ! "${WORKING_DIR}" ]; then WORKING_DIR="/tmp"; fi
 
 TMPDIR=$(mktemp -d ${WORKING_DIR}/transcode.XXXXXXXX) || exit 1
-cd "${TMPDIR}" || ( notify_me "Cannot write to ${WORKING_DIR}"; exit 1 )
+cd "${TMPDIR}" || ( notify_me "Cannot access ${WORKING_DIR}"; exit 1 )
 if [ $VERBOSE -ne 0 ] ; then echo "Working directory: ${TMPDIR}"; fi 
 
 ## CLEAN UP AFTER YOURSELF
 function finish {
-  cd "${cwd}" || cd || echo "Original directory gone" 
-  if [ DEBUG -ne 1 ]; then rm -rf "${TMPDIR}"; fi
+  cd "${cwd}" || ( cd && echo "Original directory gone" ) 
+  if [ $DEBUG -ne 1 ]; then rm -rf "${TMPDIR}" || echo "Okay, that's strange: Temp directory missing" ; fi
 }
 trap finish EXIT
 
@@ -289,8 +304,8 @@ export -f transcode
 
 
 ## SCAN SOURCE DIRECTORY FOR FILES, OR PARSE SOURCE_FILE ARGUMENT
-# If none can be accessed, quit with error                                                                                                                                                                                                                                              
-notify_me "Searching for new shows to transcode."
+# If none can be accessed, quit, otherwise report on how many shows to do.
+                                                                        
 rlist="${TMPDIR}/recording_list"
 if [ "${SOURCE_FILE}" ]; then
   # Try to find the file within the source directory
@@ -300,10 +315,17 @@ if [ "${SOURCE_FILE}" ]; then
   fi
 else
   if ! find "${SOURCE_DIR}" -not -path '*/\.grab' -not -path "./Temp/*" -type f \
-    -regextype posix-extended -regex ".*\.(${SOURCE_TYPE})" ${FIND_METHOD} > "${rlist}"; then
+    ${REGEXTYPE} -regex ".*\.(${SOURCE_TYPE})" ${FIND_METHOD} > "${rlist}"; then
     notify_me "Cannot access ${SOURCE_DIR}"
     exit 1	# Exits from script with error 1 (cannot access source directory) 
   fi
+fi
+count=$(wc -l "${rlist}" | cut -d" " -f1)
+if [ $count ]; then
+  notify_me "Found ${count} new shows to transcode."
+else
+  notify_me "No new shows to transcode"
+  exit 0
 fi
 
 
@@ -311,11 +333,6 @@ fi
 # This prepares all files for transcoding, one after the other
 if [ $VERBOSE != 0 ] ; then echo "$(wc -l "${rlist}") files found."; fi
 while read -r show <&3; do
-  #ifile=$(basename "${show}")     # Name of original file
-  #bname="${fname%.*}"       # Basename of original file
-  #dname=$(dirname "${show}")      # Directory of original file
-  #extension="${show##*.}"   # Extension (type) of original file  
-  
   # EXTRACT DETAILS OF SHOW
   # Break down file name into variables and use to define output filename and directory
   regex="([0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{4})\ (.*)\ ([0-9]{4}-[0-9]{2}-[0-9]{2})\ [sS]([0-9]{2})[eE]([0-9]{2})\ (.*)\.(mp4|mkv|mpg|ts|m4v)"
