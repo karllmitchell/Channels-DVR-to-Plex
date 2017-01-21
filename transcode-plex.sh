@@ -59,7 +59,7 @@ CAFFEINATE_CLI=""                            # Location of caffeinate binary.  P
 
 # If you want phone notifications with IFTTT, enter your IFTTT_MAKER_KEY here, and be sure to have curl on your system
 # Also, set up an IFTTT MAKER Applet event called "TVEvent" with a "Value1." notification format.
-IFTTT_MAKER_KEY="cswxmCHxXyO05HkUU1STG0"     # Set to "" if you do not want IFTTT Maker notifications.  A 22-digit code.
+IFTTT_MAKER_KEY=""     # Set to "" if you do not want IFTTT Maker notifications.  A 22-digit code.
 CURL_CLI="/usr/bin/curl"                     # Location of curl binary.  Only required if using IFTTT notifications.
 # WARNING: Do not change these two IFTTT system variables:
 IFTTT_TYPE="Content-Type: application/json"
@@ -72,7 +72,7 @@ IFTTT_MAKER="https://maker.ifttt.com/trigger/{TVevent}/with/key/${IFTTT_MAKER_KE
 #   If set up correctly, you can add multiple servers, e.g. "-S $SERVER1 -S $SERVER2", here too.  Remember to set ssh keys for password-free login.
 #   --memfree 700M (RAM needed) is appropriate for default settings ("Apple 1080p30 Surround", veryfast, MAXSIZE=1080).  MAXSIZE=720 is more like 425M.
 # T.B.D. etherwake to allow Wake-on-LAN functionality, and something to allow waiting for available cores.
-PARALLEL_CLI="/usr/bin/parallel"             # Location of GNU parallel binary.  Note that with -j 1 this will run like a normal non-parallel task.  
+PARALLEL_CLI=""             # Location of GNU parallel binary.  Note that with -j 1 this will run like a normal non-parallel task.  
 PARALLEL_OPTS=(-j 1 --nice $NICE --memfree 700M) 
 
 # The following need to be exported to use GNU parallel
