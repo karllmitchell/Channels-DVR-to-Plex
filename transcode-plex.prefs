@@ -322,8 +322,7 @@ if [ "$PARALLEL_CLI" ]; then
   parallel --record-env
   parallel --env _ "${PARALLEL_OPTS[@]}" transcode ::: *.mpg
 else 
-  if [ "${NICE}" ]; then NICE="nice -n ${NICE}"; else NICE="nice"; fi
-  for file in *.mpg; do ${NICE} transcode "${file}"; done
+  for file in *.mpg; do transcode "${file}"; done
 fi
 
 notify_me "All transcoding complete"
