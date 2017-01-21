@@ -1,19 +1,24 @@
 # Channels-DVR-to-Plex
-Scripts to enable transcoding from Channels DVR recordings and addition to Plex file structure
 
-I run both Channels DVR and Plex. I've found it convenient to automatically transcode to an h.264 format under Plex for streaming that avoids the need for live transcoding, which requires a more powerful processing. Please note that this has not been thoroughly tested on all systems, and that it is to be used at your own risk. This is sub-beta quality right now! Feel free to take it and make it your own, or contribute to this archive, as long as you share your work and operate within the license.
+Channels DVR is an extremely user friendly piece of software for recording TV from Silicondust HDHomeRun network TV tuners and, primarily, for serving to the Channels app on the Apple TV 4.  However, it is somewhat limited in its ability to serve to other clients and outside of a local network, so I have found it convenient to automatically transcode recording shows to an h.264 format, added to Plex, with the added benefit that it avoids the need for live transcoding to most devices.
+
+Please note that this has not been thoroughly tested on all systems, and that it is to be used at your own risk. It has so far been tested on (at least) Ubuntu 16.04 Xenial (arm64) and Mac OS Sierra 10.12 (intel x86-64).  This is sub-beta quality right now! Feel free to take it and make it your own, or contribute to this archive, as long as you share your work and operate within the license.
 
 **The main script**
 
 *transcode-plex.sh* requires bash, and is designed primarily to run as a nightly job, preferably after all commercial scanning is over (12:01 AM by default), although it can be run from the command line too. I recommend placing it in /usr/local/bin.
 
+Although this will run on extremely underpowered systems, including ARM-based SOCs, by default I do not recommend anything with less than 1 GByte, preferable 2 GBytes, of RAM (certainly at least 750 MBytes unused).  If you are accessing the inputs files across a network, you will want a fast one (Gigabit throughout, ideally), or to set aside at least a few tens of GBytes of storage and use the TEMP_COPY=1 argument.  Many modern intel systems can almost certainly process faster-than-realtime (i.e. a 1-hr show will take less than 1-hr), but an ARM SOC like a Raspberry Pi would probably be about 6x slower than real-time, and might not keep up with your TV viewing.
+
 At the top of the file there are a lot of settings, which are quite extensively commented within the script. Before running, you should read through and edit these, certainly if you're going to run it nightly (see below). All of these can be substituted on the command line (see examples below).
 
-HandBrakeCLI is used for transcoding via ffmpeg and x264. This is easy to obtain (http://handbrake.fr/ or via apt-get, macports, etc.) and by default I have it set up to produce high quality full resolution outputs that look good on a full HDTV with Apple TV: the "Apple 1080p30 Surround" preset; This is suitable for most modern devices, but if it doesn't work for you just change it, or over-ride from the command line (see below). Both subtitles and sound are preserved from the original MPEG, and if surround sound exists then a stereo track is added for more universal compatibility. If you would like something more suitable for limited upload bandwidth, I recommend using the MAXSIZE setting (e.g. MAXSIZE=720 for 720p).  You could also try changing speed to e.g. veryslow (which trades processing load with file size, in theory).  Note that transcoding is done in software, and so will be a CPU hog on most systems, and so it's worth running with "nice" set (default is 10).  I have attempted to balance output quality, file size and processor load so that it will work well for most of you.
+HandBrakeCLI is used for transcoding via ffmpeg and x264. This is easy to obtain (http://handbrake.fr/ or via apt-get, macports, etc.) and by default I have it set up to produce high quality full resolution outputs that look good on a full HDTV with Apple TV: the "Apple 1080p30 Surround" preset; This is suitable for most modern devices, but if it doesn't work for you just change it, or over-ride from the command line (see below). Both subtitles and sound are preserved from the original MPEG, and if surround sound exists then a stereo track is added for more universal compatibility. If you would like something more suitable for limited upload bandwidth, I recommend using the MAXSIZE setting (e.g. MAXSIZE=720 for 720p).  You could also try changing speed to e.g. veryslow (the speed setting trades processing load with file size, in theory, but in reality slower settings do not always produce smaller files).  Note that transcoding is done in software, and so will be a CPU hog on most systems, and thus it's worth running with "nice" set (default is 10).  It should be possible to edit the script to use hardware transcoding if desired.  I have attempted to balance output quality, file size and processor load so that it will work well for most end-users.
 
 By default, the script looks for the last 24 hours of recordings (the FIND_METHOD="-mtime -1" setting) and only converts those. If you comment this line out, or leave it blank (e.g. FIND_METHOD="") it will convert every single folder. I do not recommend this unless you're running it with DELETE_ORIG=1 (which deletes the source file).  An eventual intent is to run automatically as soon as commercial skipping is complete.
 
 Other interesting options are COMTRIM=1, which removes the commercials based on Channels DVR commercial detection, and CHAPTERS=1, which doesn't remove them, but does add chapter markers based on the start and end points that Plex can read. I recommend using this latter mode unless you are very confident in the commercial detection, which in my experience produces quite a few blunders unless you have tuned your comskip.ini file extremely carefully. Note that if both are set, COMTRIM will "win".
+
+Finally, some "bonus" feature described below utilize IFTTT for phone notifications and GNU parallel for offloading to other machines. 
 
 **Command line operation**
 
@@ -34,15 +39,13 @@ An additional option for command line execution only is to specify the show you 
 convert-plex.sh SOURCE_FILE="2017-01-14-2059 Sherlock on Masterpiece 2017-01-08 S04E02 The Lying Detective.mpg"
 convert-plex.sh SOURCE_FILE="Sherlock"
 
-Finally, some "bonus" feature described below utilize IFTTT for phone  notifications and GNU parallel for offloading to other machines. 
-
 **Daemon/cron management**
 
 For most Linux users it's probably easiest to run this as a cron job, preferably with a high "niceness". Something like:
 
-1 12 * * * nice /usr/local/bin/transcode-plex.sh > ~/convert-plex.log
+1 0 * * * nice /usr/local/bin/transcode-plex.sh > ~/convert-plex.log
 
-For Mac users, I've included a LaunchAgent file (com.getchannels.transcode-plex.plist), typically placed into the /Library/LaunchAgents directory. Once it's there, run the following:
+which starts it running at 12:01am every night.  For Mac users, I've included a LaunchAgent file in this archive (com.getchannels.transcode-plex.plist), typically placed into the /Library/LaunchAgents directory. Once it's there, run the following:
 
 sudo launchctl load /Library/LaunchAgents/com.getchannels.transcode-plex.plist
 sudo launchctl start com.getchannels.transcode-plex
@@ -63,7 +66,7 @@ I have been experimenting with GNU parallel, giving the ability to (i) farm your
 
 I do not recommend parallelizing between cores on a single machine (i.e. setting -j to more than 1), because (i) Handbrake with x264 is very scalable between cores already, and so even though you might see a marginal potential gain, there are plenty of other bottlenecks that could reverse that gain, and (ii) You'll actually see your files later on average, because of non-sequential delivery.
 
-*Requirements:*
+*Parallelisation Requirements:*
 
 i) A RECENT version of GNU parallel (some of the options I use aren't on older releases) installed both on this machine and any others you wish to send the commend to.
 ii) Both the WORKING_DIR and the DEST_DIR must be visible in the same location on your drive on your remote system. This will involve drive mounting using NFS, AFP or SMB. I do not recommend SMB due to erratic file access. I also do not recommend trying this unless you have very smooth Gigabit networking or better. I'll work on different ways to implement this in the future that might be more efficient.
