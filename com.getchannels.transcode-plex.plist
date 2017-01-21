@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.getchannels.transcode-plex.plist</string>
+    <key>Nice</key>
+    <integer>10</integer>
+    <key>StandardOutPath</key>
+    <string>/var/log/transcode-plex.log</string>
+    <key>StandardErrorPath</key>
+    <string>/var/log/transcode-plex.err</string>
+    <key>Program</key>
+    <string>/usr/local/bin/transcode-plex.sh</string>
+    <key>StartCalendarInterval</key>
+	<dict>
+		<key>Hour</key>
+		<integer>00</integer>
+		<key>Minute</key>
+		<integer>01</integer>
+	</dict>
+</dict>
+</plist>
