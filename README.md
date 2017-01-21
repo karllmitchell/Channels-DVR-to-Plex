@@ -1,7 +1,7 @@
 # Channels-DVR-to-Plex
 Scripts to enable transcoding from Channels DVR recordings and addition to Plex file structure
 
-I run both Channels DVR and Plex. I've found it convenient to automatically transcode to an h.264 format under Plex for streaming that avoids the need for live transcoding, which requires a more powerful processing. I figured it might be appreciated to share my work with you, here: https://gist.github.com/karllmitchell8. Please note that this has not been thoroughly tested on all systems, and that it is to be used at your own risk. This is sub-beta quality right now! Feel free to take it and make it your own, as long as you share your work.
+I run both Channels DVR and Plex. I've found it convenient to automatically transcode to an h.264 format under Plex for streaming that avoids the need for live transcoding, which requires a more powerful processing. Please note that this has not been thoroughly tested on all systems, and that it is to be used at your own risk. This is sub-beta quality right now! Feel free to take it and make it your own, or contribute to this archive, as long as you share your work and operate within the license.
 
 **The main script**
 
