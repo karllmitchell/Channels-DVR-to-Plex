@@ -11,7 +11,7 @@
 #  Caffeinate (a mac utility to prevent sleep)
 #  Parallel (GNU software for parallel processing; Can run jobs in parallel across cores, processors or even computers if set up correctly)
 # Unix prerequisites for above packages (use e.g. apt-get/macports):
-#  autoconf automake libtool pkgconfig argtable sdl coreutils curl ffmpeg
+#  autoconf automake libtool pkgconfig argtable sdl coreutils curl ffmpeg realpath
 # MAC OS: Run with launchd at /Library/LaunchAgents/com.getchannels.transcode-plex.plist.  Edit to change when it runs (default = 12:01am daily).
 #  Once in place and readable, run
 #   sudo launchctl load /Library/LaunchAgents/com.getchannels.transcode-plex.plist
@@ -21,96 +21,38 @@
 # LINUX: Run as a cron or service, e.g. "EDITOR=nedit crontab -e" then add line 1 12 * * * nice /usr/local/bin/transcode-plex.sh
 # Edit default settings below.  These may all be over-ridden from the command line, e.g. transcode-plex.sh CHAPTERS=1 COMTRIM=0 FIND_METHOD="-mtime -2"
 
-## DEFAULT SETTINGS:
-# Set the following variables to be correct for your system
-# If source_dir is on a remove drive, automount/autofs is recommended
-SOURCE_DIR="/mnt/dvr/channels/TV"            # Location for source video recordings.  Should be the TV sub-directory of channels-dvr folders.
-SOURCE_TYPE="ts|mkv|mpg"                     # File extension used, could be "ts" or "ts|mpg|mpeg".  Avoid "m4v" if delivering to same directory..
-DEST_DIR="/mnt/network/Plex/TV Shows"        # Desination for video recordings.  Subdirectory structure within SOURCE_DIR duplicated too..
-WORKING_DIR="/mnt/dvr/tmp"                   # If left blank, an arbitrary temp directory will be used.
-SOURCE_FILE=""                               # If filled, specifies a particular filename and only searches for that file.  Useful for manual input.
-BACKUP_DIR=""                                # Location to deposit files if server offline.  Delete if not needed.
-CHAPTERS=1                                   # Set to mark commercials as chapters.  Doesn't work if COMTRIM enabled.
-COMTRIM=0                                    # Set to 1 to trim commercials from output file.  Takes priority over comskip.  Use at own risk.
-DELETE_ORIG=0                                # Set to 1 to delete original files and 0 to disable.
-TEMP_COPY=0                                  # Copies input file to the working directory first; useful when running over erratic networks.
-LANG="en-US"                                 # Force MP4 file tracks to have a language; Necessary for AppleTV 4 to see chapters.			
-FIND_METHOD="-mtime -1"                      # See man find for usage.  -mtime -1 signifies the last 24 hours.  Leave blank if you want all files.  
-NICE=10                                      # For intensive tasks, set a "niceness" between 0 and 19, so as not to lock up the machine.
-VERBOSE=1                                    # 0 = quiet; 1 = normal; 2 = detailed.
-DEBUG=0                                      # For development.  Does not delete temporary directory (in WORKING_DIR) after use.  
-					     
-# Encoder presets, usually best to keep it simple.  
-PRESET="Apple 1080p30 Surround"              # HandBrakeCLI preset determines output default quality/resolution, run HandBrakeCLI -z to show list
-                                             # In older versions of HandBrakeCLI, this would be "AppleTV 3".  For old/slow clients use "Apple 720p30 Surround".
-					     # In this instance, this is more for setting quality and player performance requirements.  Size can be changed below.
-SPEED="veryfast"                             # Faster settings give theoretically larger filesizes and shorter transcode times; They do not affect quality.
-                                             # In my own tests, however, despite using simpler, faster algorithms, veryfast actually produces smaller files.
-					     # The only recommended ENCODER_PRESET values are slow, medium, fast, faster, fastest, veryfast.
-MAXSIZE=1080                                 # Sets an upper limit for height; Recommended are those that give a 16:9 ratio, 1080, 720, 576, 540, 360
-ALLOW_EAC3=1                                 # EXPERIMENTAL: Enables preservation of Dolby Digital Plus (where available) in a manner playable by AppleTV 4.
-EXTRAS=(--optimize --subtitle 1)             # Extra options set here.  Read HandBrakeCLI documentation before editing!
+## PREFERENCES FOR SYSTEM CONFIGURATION
+# The preferences file is normally called "prefs", and is searched for within these locations in order:
+#   ${BASH_SOURCE%/*}/transcode-plex/prefs
+#   ~/.transcode-plex/prefs
+#   ${BASH_SOURCE%/*}/../lib/transcode-plex/prefs
+#   ~/Library/Application Support/transcode-plex/prefs
+#   /Library/Application Support/transcode-plex/prefs
+#   /var/lib/transcode-plex/prefs
+#   /usr/local/lib/transcode-plex/prefs
+# Alternatively, have a file called transcode-plex.prefs in your current working directory to overload
+# All of the options set within the preferences file can be over-riden by adding them as command-line arguments:
+#   e.g. transcode-plex.sh CHAPTERS=1 COMTRIM=0 FIND_METHOD="-mtime -2" 
+EXECUTABLE="${BASH_SOURCE[0]}"
+BN=$(basename "${EXECUTABLE}")
+DIR="${BASH_SOURCE%/*}"
 
-# Locations of critical programs.  These can be shortened to just the name, but then default version discovered by "which" will be used. 
-HANDBRAKE_CLI="/usr/local/bin/HandBrakeCLI"  # Location of HandBrakeCLI binary.  Absolutely necessary
-MP4BOX_CLI="/usr/bin/MP4Box"                 # Location of MP4Box binary (part of gpac package).  Only required if CHAPTERS=1.
-FFMPEG_CLI="/usr/bin/ffmpeg"                 # Location of ffmpeg binary.  Only required if COMTRIM=1.
-CAFFEINATE_CLI=""                            # Location of caffeinate binary.  Prevents system from sleeping if present.  Unnecessary for always-on systems.
+echo "${BN} executed"
 
-# If you want phone notifications with IFTTT, enter your IFTTT_MAKER_KEY here, and be sure to have curl on your system
-# Also, set up an IFTTT MAKER Applet event called "TVEvent" with a "Value1." notification format.
-IFTTT_MAKER_KEY=""     # Set to "" if you do not want IFTTT Maker notifications.  A 22-digit code.
-CURL_CLI="/usr/bin/curl"                     # Location of curl binary.  Only required if using IFTTT notifications.
-# WARNING: Do not change these two IFTTT system variables:
-IFTTT_TYPE="Content-Type: application/json"
-IFTTT_MAKER="https://maker.ifttt.com/trigger/{TVevent}/with/key/${IFTTT_MAKER_KEY}"
+if [[ ! -d "$DIR" ]]; then DIR="$PWD"; fi
 
-# WARNING: Most people should leave PARALLEL_CLI blank
-# GNU parallel allows you to control the number of parallel transcoding jobs or farm out to other machines (target directory should be the same)
-# Anyone using this will should read  GNU parallel documentation sufficient to set up their remote servers. Multiple PARALLEL_OPTS arguments should be added:
-#   The memfree option requires a recent version of parallel >=2015, and should be tailored based on experience
-#   If set up correctly, you can add multiple servers, e.g. "-S $SERVER1 -S $SERVER2", here too.  Remember to set ssh keys for password-free login.
-#   --memfree 700M (RAM needed) is appropriate for default settings.  Some other quantities below:
-#      "Apple 1080p30 Surround", veryfast, 1080i input:  700M
-#      "Apple 1080p30 Surround", veryfast, 720p input:  425M
-#      "Apple 1080p30 Surround", veryfast, 1080i input, MAXSIZE=720:  550M
-# T.B.D. etherwake to allow Wake-on-LAN functionality
-# T.B.D. send files over GNU parallel (for erratic networks
-PARALLEL_CLI=""             # Location of GNU parallel binary.  Note that with -j 1 this will run like a normal non-parallel task.  
-PARALLEL_OPTS=(-j 1 --nice $NICE --memfree 700M) 
+for i in "/usr/local/lib/${BN}/prefs" "/var/lib/${BN}/prefs" "/Library/Application Support/${BN}/prefs" "${HOME}/Library/Application Support/${BN}/prefs" "${DIR}/../lib/${BN}.prefs" "${HOME}/.${BN}/prefs" "${DIR}/${BN}/prefs" "./${BN}.prefs"; do
+  if [ -f "$i" ] ; then SOURCE_OPTS="$i"; fi
+done
 
-# The following need to be exported to use GNU parallel
-export DEST_DIR HANDBRAKE_CLI COMTRIM VERBOSE FFMPEG_CLI MAXSIZE ALLOW_EAC3 PRESET SPEED EXTRAS CHAPTERS MP4BOX_CLI LANG BACKUP_DIR DELETE_ORIG CURL_CLI IFTTT_TYPE IFTTT_MAKER
-
-
-# When multiple TV shows or movies have the same name, they need to be identified by year as well in order for Plex to identify them.
-# Showname substitutions go below, using the format examples:
-function showname_clean {
-  local show=""
-  case "$1" in
-    "Bull") show="Bull (2016)";;
-    "Conviction") show="Conviction (2016)";;
-    "Doctor Who") show="Doctor Who (2005)";;
-    "Once Upon a Time") show="Once Upon a Time (2011)";;
-    "Poldark on Masterpiece") show="Poldark (2015)";;
-    "Poldark") show="Poldark (2015)";;
-    *) show="${1}";;
-  esac
-  echo "$show"
-}
-
-## ---------- DO NOT EDIT BELOW THIS LINE UNLESS YOU KNOW WHAT YOU'RE DOING ---------- ##
-
-if [ $(uname) == "Darwin" ]; then
-  alias find="find -E"
-  REGEXTYPE=""
+if [ "${SOURCE_OPTS}" ]; then
+  # spellcheck source=/dev/null
+  source "${SOURCE_OPTS}"
 else
-  REGEXTYPE="posix-extended" 
+  echo "Cannot find preferences file.  Example at: https://github.com/karllmitchell/Channels-DVR-to-Plex/"
+  exit 1
 fi
 
-## DEFAULT SETTINGS OVER-RIDES
-# You can over-ride any of the above settings by adding them as command line arguments
-# e.g. transcode-plex.sh CHAPTERS=1 COMTRIM=0 FIND_METHOD="-mtime -2" 
 if [ $# -gt 0 ] ; then
   for var in "$@"; do
     variable=$(echo "$var" | cut -f1 -d=)
@@ -120,44 +62,38 @@ if [ $# -gt 0 ] ; then
 fi
 
 
-## CHECK PRESENCE OF REQUIRED CLI INTERFACES
-program="HandBrakeCLI"
-if [ ! -f "${HANDBRAKE_CLI}" ]; then HANDBRAKE_CLI=$(which ${program}) || (notify_me "${program} missing"; exit 9); fi
-
-if [ ${CAFFEINATE_CLI} ]; then
-  program="caffeinate"
-  if [ ! -f "${CAFFEINATE_CLI}" ]; then CAFFEINATE_CLI=$(which ${program}) || (notify_me "${program} missing"; exit 9); fi
+## ESTABLISH PRESENCE OF CLI INTERFACES
+program="HandBrakeCLI"; if [ ! -f "${HANDBRAKE_CLI}" ]; then HANDBRAKE_CLI=$(which ${program}) || (notify_me "${program} missing"; exit 9); fi
+if [ "${CAFFEINATE_CLI}" ]; then
+  program="caffeinate"; if [ ! -f "${CAFFEINATE_CLI}" ]; then CAFFEINATE_CLI=$(which ${program}) || (notify_me "${program} missing"; exit 9); fi
   "${CAFFEINATE_CLI}" -s; cpid=$!
 fi
-
-if [ $CHAPTERS == 1 ]; then
-  program="MP4Box"
-  if [ ! -f "${MP4BOX_CLI}" ]; then MP4BOX_CLI=$(which ${program}) || (notify_me "${program} missing"; exit 9); fi
+if [ "$CHAPTERS" == 1 ]; then
+  program="MP4Box"; if [ ! -f "${MP4BOX_CLI}" ]; then MP4BOX_CLI=$(which ${program}) || (notify_me "${program} missing"; exit 9); fi
 fi
-
-if [ $IFTTT_MAKER_KEY ]; then
-  program="curl"
-  if [ ! -f "${CURL_CLI}" ]; then CURL_CLI=$(which ${program}) || (notify_me "${program} missing"; exit 9); fi
+if [ "$IFTTT_MAKER_KEY" ]; then
+  program="curl"; if [ ! -f "${CURL_CLI}" ]; then CURL_CLI=$(which ${program}) || (notify_me "${program} missing"; exit 9); fi
 fi
-
-if [ $PARALLEL_CLI ]; then
-  program="parallel"
-  if [ ! -f "${PARALLEL_CLI}" ]; then PARALLEL_CLI=$(which ${program}) || (notify_me "${program} missing"; exit 9); fi
+if [ "$PARALLEL_CLI" ]; then
+  program="parallel"; if [ ! -f "${PARALLEL_CLI}" ]; then PARALLEL_CLI=$(which ${program}) || (notify_me "${program} missing"; exit 9); fi
 fi
-
-if [ $FFMPEG_CLI ]; then
-  program="ffmpeg"
-  if [ ! -f "${FFMPEG_CLI}" ]; then FFMPEG_CLI=$(which ${program}) || (notify_me "${program} missing"; exit 9); fi
+if [ "$FFMPEG_CLI" ]; then
+  program="ffmpeg"; if [ ! -f "${FFMPEG_CLI}" ]; then FFMPEG_CLI=$(which ${program}) || (notify_me "${program} missing"; exit 9); fi
 fi
+if [ ! "$(which realpath)" ] ; then
+  echo "Some functionality of this software will be absent if realpath is not installed."
+  echo "If you have problems, then please set up an alias in /etc/bashrc (or your system equivalent) thus:"
+  echo "alias realpath='[[ \$1 = /* ]] && echo \"\$1\" || printf \"%s/\${1#./}\" \${PWD}'"
+fi
+if [ "$(uname)" == "Darwin" ]; then alias find="find -E"; else REGEXTYPE="-regextype posix-extended"; fi
 
-if [ ! $(which realpath) ] ; then alias realpath='[[ $1 = /* ]] && echo "$1" || printf "%s/${1#./}" ${PWD}'; echo "aliased"; fi
 
 ## REPORT PROGRESS, OPTIONALLY VIA PHONE NOTIFICATIONS
 # Customise if you have an alternative notification system
 function notify_me {
   echo "${1}"
-  if [ ${IFTTT_MAKER_KEY} ]; then 
-    case ${VERBOSE} in
+  if [ "${IFTTT_MAKER_KEY}" ]; then 
+    case "${VERBOSE}" in
       0)
         quiet="--silent"
 	;;
@@ -173,23 +109,20 @@ function notify_me {
   return 0
 }
 export -f notify_me
-
-function fullpath() {
-    [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"
-}
+   
         
 ## CREATE AND GO TO A TEMPORARY WORKING DIRECTORY
 cwd=$(pwd)
 if [ ! "${WORKING_DIR}" ]; then WORKING_DIR="/tmp"; fi
-
 TMPDIR=$(mktemp -d ${WORKING_DIR}/transcode.XXXXXXXX) || exit 1
 cd "${TMPDIR}" || ( notify_me "Cannot access ${WORKING_DIR}"; exit 1 )
-if [ $VERBOSE -ne 0 ] ; then echo "Working directory: ${TMPDIR}"; fi 
+if [ "$VERBOSE" -ne 0 ] ; then echo "Working directory: ${TMPDIR}"; fi 
+
 
 ## CLEAN UP AFTER YOURSELF
 function finish {
   cd "${cwd}" || ( cd && echo "Original directory gone" ) 
-  if [ $DEBUG -ne 1 ]; then rm -rf "${TMPDIR}" || echo "Okay, that's strange: Temp directory missing" ; fi
+  if [ "$DEBUG" -ne 1 ]; then rm -rf "${TMPDIR}" || echo "Okay, that's strange: Temp directory missing" ; fi
 }
 trap finish EXIT
 
@@ -217,12 +150,12 @@ function transcode {
 
   # COMMERCIAL TRIMMING (optional)
   # Trims out commercial breaks before transcoding, if option set
-  if [ ${COMTRIM} -eq 1 ]; then
+  if [ "${COMTRIM}" -eq 1 ]; then
     # Finds symbolic link to target file within Logs directory. Important: Assumes only one match.
     # Then finds comskip output files within that directory.
     ctfail=0
     
-    if [ $VERBOSE -ne 0 ] ; then echo "Attempting to trim input file"; fi
+    if [ "$VERBOSE" -ne 0 ] ; then echo "Attempting to trim input file"; fi
     
     # Split then concatenate source file
     if [ ${ctfail} -eq 0 ] && [ -f "${bname}.cffsplit" ] && [ -s "${FFMPEG_CLI}" ]; then
@@ -238,7 +171,7 @@ function transcode {
     
     if [ ${ctfail} -eq 0 ]; then
       mv -f "${bname}_cut.${extension}" "${fname}"
-      if [ $VERBOSE -ne 0 ] ; then echo "Commercial trimming was successful"; fi
+      if [ "$VERBOSE" -ne 0 ] ; then echo "Commercial trimming was successful"; fi
     else
       notify_me "${bname} commercial trim failed. Using un-trimmed file."
     fi
@@ -246,12 +179,12 @@ function transcode {
   
   # THE ACTUAL TRANSCODING PART
   echo "Attempting to transcode ${fname} ..."
-  if [ $MAXSIZE ]; then EXTRAS+=(--maxHeight $MAXSIZE --maxWidth $((MAXSIZE * 16 / 9))); fi
-  if [ ${ALLOW_EAC3} -eq 1 ]; then EXTRAS+=(-E "ffaac,copy" --audio-copy-mask "eac3,ac3,aac"); fi 
-  if [ $VERBOSE -ne 0 ] ; then
-    echo \"${HANDBRAKE_CLI}\" -v ${VERBOSE} -i \""${ifile}"\" -o \""${bname}.m4v"\" --preset=\""${PRESET}"\" --encoder-preset=\""${SPEED}"\" "${EXTRAS[@]}"
+  if [ "$MAXSIZE" ]; then EXTRAS+=(--maxHeight "$MAXSIZE" --maxWidth $((MAXSIZE * 16 / 9))); fi
+  if [ "${ALLOW_EAC3}" -eq 1 ]; then EXTRAS+=(-E "ffaac,copy" --audio-copy-mask "eac3,ac3,aac"); fi 
+  if [ "$VERBOSE" -ne 0 ] ; then
+    echo \"${HANDBRAKE_CLI}\" -v \""${VERBOSE}"\" -i \""${ifile}"\" -o \""${bname}.m4v"\" --preset=\""${PRESET}"\" --encoder-preset=\""${SPEED}"\" "${EXTRAS[@]}"
   fi
-  if "${HANDBRAKE_CLI}" -v ${VERBOSE} -i "${fname}" -o "${bname}.m4v" --preset="${PRESET}" --encoder-preset="${SPEED}" "${EXTRAS[@]}" ; then
+  if "${HANDBRAKE_CLI}" -v "${VERBOSE}" -i "${fname}" -o "${bname}.m4v" --preset="${PRESET}" --encoder-preset="${SPEED}" "${EXTRAS[@]}" ; then
     rm -f "${ifile}" # Delete tmp input file/link  
   else
     # Transcode has failed, so report that but don't give up on the rest
@@ -262,10 +195,10 @@ function transcode {
   
   # COMMERCIAL MARKING
   # Instead of trimming commercials, simply mark breaks as chapters
-  if [ ${CHAPTERS} -eq 1 ] && [ ${COMTRIM} -ne 1 ]; then
-    if [ $VERBOSE != 0 ] ; then echo "Adding commercial chapters to file"; fi
-    if "${MP4BOX_CLI}" -lang "${LANG}" -chap "${bname}.vdr" "${oname}"; then
-      if [ $VERBOSE != 0 ] ; then echo "Commercial marking succeeded"; fi
+  if [ "${CHAPTERS}" -eq 1 ] && [ "${COMTRIM}" -ne 1 ]; then
+    if [ "$VERBOSE" != 0 ] ; then echo "Adding commercial chapters to file"; fi
+    if "${MP4BOX_CLI}" -lang "${LANG}" -chap "${bname}.vdr" "${bname}.m4v"; then
+      if [ "$VERBOSE" != 0 ] ; then echo "Commercial marking succeeded"; fi
     else
       # Transcode has failed, so report that but don't give up on the rest
       notify_me "Failed to add commercial markers to ${bname}."
@@ -275,7 +208,7 @@ function transcode {
 
 
   # MOVE FILE TO TARGET DIRECTORY
-  if [ $VERBOSE != 0 ] ; then echo mv -f \""${bname}.m4v"\" \""${tdname}"\"; fi
+  if [ "$VERBOSE" != 0 ] ; then echo mv -f \""${bname}.m4v"\" \""${tdname}"\"; fi
   if mkdir -p "${tdname}" && mv -f "${bname}.m4v" "${tdname}"; then 
     echo "Devlivered."
     # If this fails, back up transcoded file to local drive, then send error messages and exit script	
@@ -293,7 +226,7 @@ function transcode {
   
   # CLEAN UP
   rm -f "${bname}.*"
-  if [ ${DELETE_ORIG} == 1 ]; then
+  if [ "${DELETE_ORIG}" -eq 1 ]; then
     if ! rm -f "$1"; then
       notify_me "${bname} original file failed to delete."
       return 4	# Returns from transcode function with error 4 (cannot delete original file)
@@ -326,7 +259,7 @@ else
   fi
 fi
 count=$(wc -l "${rlist}" | cut -d" " -f1)
-if [ $count ]; then
+if [ "$count" ]; then
   notify_me "Found ${count} new shows to transcode."
 else
   notify_me "No new shows to transcode"
@@ -336,7 +269,7 @@ fi
 
 ## PREPARE FILES AND LINKS IN WORKING DIRECTORY
 # This prepares all files for transcoding, one after the other
-if [ $VERBOSE != 0 ] ; then echo "$(wc -l "${rlist}") files found."; fi
+if [ "$VERBOSE" != 0 ] ; then echo "$(wc -l "${rlist}") files found."; fi
 while read -r show <&3; do
   # EXTRACT DETAILS OF SHOW
   # Break down file name into variables and use to define output filename and directory
@@ -360,8 +293,8 @@ while read -r show <&3; do
   for i in ffsplit vdr; do if [ -f "${cdir}/video.${i}" ] ; then ln -s "${cdir}/video.${i}" "${bname}.${i}"; fi; done
 
   # If selected, copy file to tmp folder, and report errors if there are issues
-  if [ ${TEMP_COPY} == 1 ]; then
-    if [ $VERBOSE != 0 ] ; then printf "\nAttempting to copy %s ...\n" "$1"; fi
+  if [ "${TEMP_COPY}" == 1 ]; then
+    if [ "$VERBOSE" != 0 ] ; then printf "\nAttempting to copy %s ...\n" "$1"; fi
     if ! cp -f "${show}" "${TMPDIR}/${bname}.${extension}"; then
       # Report that file couldn't be accessed ...
       # ... and if source directory isn't accessible, exit from script, otherwise exit from function.
@@ -381,12 +314,15 @@ done 3< "${rlist}"
 # THIS CALLS THE ACTUAL TRANSCODING JOB
 # Using GNU Parallel is preferred, due to the extra flexibility it gives
 if [ "$PARALLEL_CLI" ]; then
-  if [ $COMTRIM == 1 ]; then PARALLEL_OPTS+=(--delay 120); fi
+  if [ "$COMTRIM" == 1 ]; then PARALLEL_OPTS+=(--delay 120); fi
   PARALLEL_OPTS+=(--joblog "progress.txt" --results progress --header :)
+  # The following need to be exported to use GNU parallel:
+  export DEST_DIR HANDBRAKE_CLI COMTRIM VERBOSE FFMPEG_CLI MAXSIZE ALLOW_EAC3 PRESET SPEED EXTRAS \
+    CHAPTERS MP4BOX_CLI LANG BACKUP_DIR DELETE_ORIG CURL_CLI IFTTT_TYPE IFTTT_MAKER
   parallel --record-env
   parallel --env _ "${PARALLEL_OPTS[@]}" transcode ::: *.mpg
 else 
-  if [ ${NICE} ]; then NICE="nice -n ${NICE}"; else NICE="nice"; fi
+  if [ "${NICE}" ]; then NICE="nice -n ${NICE}"; else NICE="nice"; fi
   for file in *.mpg; do ${NICE} transcode "${file}"; done
 fi
 
