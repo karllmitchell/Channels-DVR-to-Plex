@@ -145,6 +145,11 @@ if [ $PARALLEL_CLI ]; then
   if [ ! -f "${PARALLEL_CLI}" ]; then PARALLEL_CLI=$(which ${program}) || (notify_me "${program} missing"; exit 9); fi
 fi
 
+if [ $FFMPEG_CLI ]; then
+  program="ffmpeg"
+  if [ ! -f "${FFMPEG_CLI}" ]; then FFMPEG_CLI=$(which ${program}) || (notify_me "${program} missing"; exit 9); fi
+fi
+
 if [ ! $(which realpath) ] ; then alias realpath='[[ $1 = /* ]] && echo "$1" || printf "%s/${1#./}" ${PWD}'; echo "aliased"; fi
 
 ## REPORT PROGRESS, OPTIONALLY VIA PHONE NOTIFICATIONS
