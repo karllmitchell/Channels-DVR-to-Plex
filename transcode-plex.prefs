@@ -37,7 +37,7 @@ PRESET="Apple 1080p30 Surround"              # HandBrakeCLI preset determines ou
 SPEED="veryfast"                             # Faster settings give theoretically larger filesizes and shorter transcode times; They do not affect quality.
                                              # In my own tests, however, despite using simpler, faster algorithms, veryfast actually produces smaller files.
 					     # The only recommended ENCODER_PRESET values are slow, medium, fast, faster, fastest, veryfast.
-MAXSIZE=720                                  # Sets an upper limit for height; Recommended are those that give a 16:9 ratio, 1080, 720, 576, 540, 360
+MAXSIZE=1080                                 # Sets an upper limit for height; Recommended are those that give a 16:9 ratio, 1080, 720, 576, 540, 360
 ALLOW_EAC3=1                                 # EXPERIMENTAL: Enables preservation of Dolby Digital Plus (where available) in a manner playable by AppleTV 4.
 EXTRAS=(--optimize --subtitle 1)             # Extra options set here.  Read HandBrakeCLI documentation before editing!
 
@@ -49,7 +49,7 @@ CAFFEINATE_CLI=""                            # Location of caffeinate binary.  P
 
 # If you want phone notifications with IFTTT, enter your IFTTT_MAKER_KEY here, and be sure to have curl on your system
 # Also, set up an IFTTT MAKER Applet event called "TVEvent" with a "Value1." notification format.
-IFTTT_MAKER_KEY="cswxmCHxXyO05HkUU1STG0"     # Set to "" if you do not want IFTTT Maker notifications.  A 22-digit code.
+IFTTT_MAKER_KEY=""     # Set to "" if you do not want IFTTT Maker notifications.  A 22-digit code.
 CURL_CLI="/usr/bin/curl"                     # Location of curl binary.  Only required if using IFTTT notifications.
 # WARNING: Do not change these two IFTTT system variables:
 IFTTT_TYPE="Content-Type: application/json"
@@ -66,7 +66,7 @@ IFTTT_MAKER="https://maker.ifttt.com/trigger/{TVevent}/with/key/${IFTTT_MAKER_KE
 #      "Apple 1080p30 Surround", veryfast, 1080i input, MAXSIZE=720:  550M
 # T.B.D. etherwake to allow Wake-on-LAN functionality
 # T.B.D. send files over GNU parallel (for erratic networks)
-PARALLEL_CLI="/usr/bin/parallel"             # Location of GNU parallel binary.  Note that with -j 1 this will run like a normal non-parallel task.  
+PARALLEL_CLI=""             # Location of GNU parallel binary.  Note that with -j 1 this will run like a normal non-parallel task.  
 PARALLEL_OPTS=(-j 1 --nice $NICE --memfree 700M --noswap) 
 
 # When multiple TV shows or movies have the same name, they need to be identified by year as well in order for Plex to identify them.
