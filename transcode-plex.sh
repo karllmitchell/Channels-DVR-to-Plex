@@ -318,7 +318,7 @@ if [ "$PARALLEL_CLI" ]; then
   PARALLEL_OPTS+=(--joblog "progress.txt" --results progress --header :)
   # The following need to be exported to use GNU parallel:
   export DEST_DIR HANDBRAKE_CLI COMTRIM VERBOSE FFMPEG_CLI MAXSIZE ALLOW_EAC3 PRESET SPEED EXTRAS \
-    CHAPTERS MP4BOX_CLI LANG BACKUP_DIR DELETE_ORIG CURL_CLI IFTTT_TYPE IFTTT_MAKER
+    CHAPTERS MP4BOX_CLI LANG BACKUP_DIR DELETE_ORIG CURL_CLI IFTTT_TYPE IFTTT_MAKER IFTTT_MAKER_KEY
   parallel --record-env
   parallel --env _ "${PARALLEL_OPTS[@]}" transcode ::: *.mpg
 else 
