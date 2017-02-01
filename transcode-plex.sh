@@ -93,6 +93,7 @@ if [ "$(uname)" == "Darwin" ]; then alias find="find -E"; else REGEXTYPE="-regex
 function notify_me {
   echo "${1}"
   if [ "${IFTTT_MAKER_KEY}" ]; then 
+    IFTTT_MAKER="https://maker.ifttt.com/trigger/{TVevent}/with/key/${IFTTT_MAKER_KEY}"
     case "${VERBOSE}" in
       0)
         quiet="--silent"
@@ -104,7 +105,7 @@ function notify_me {
         quiet=""
 	;;
     esac
-    "${CURL_CLI}" $quiet -X POST -H "$IFTTT_TYPE" -d '{"value1":"'"${1}"'"}' "$IFTTT_MAKER" > /dev/null
+    "${CURL_CLI}" $quiet -X POST -H "Content-Type: application/json" -d '{"value1":"'"${1}"'"}' "$IFTTT_MAKER" > /dev/null
   fi
   return 0
 }
@@ -318,7 +319,7 @@ if [ "$PARALLEL_CLI" ]; then
   PARALLEL_OPTS+=(--joblog "progress.txt" --results progress --header :)
   # The following need to be exported to use GNU parallel:
   export DEST_DIR HANDBRAKE_CLI COMTRIM VERBOSE FFMPEG_CLI MAXSIZE ALLOW_EAC3 PRESET SPEED EXTRAS \
-    CHAPTERS MP4BOX_CLI LANG BACKUP_DIR DELETE_ORIG CURL_CLI IFTTT_TYPE IFTTT_MAKER IFTTT_MAKER_KEY
+    CHAPTERS MP4BOX_CLI LANG BACKUP_DIR DELETE_ORIG CURL_CLI IFTTT_MAKER_KEY
   parallel --record-env
   parallel --env _ "${PARALLEL_OPTS[@]}" transcode ::: *.mpg
 else 
