@@ -51,9 +51,6 @@ CAFFEINATE_CLI=""                            # Location of caffeinate binary.  P
 # Also, set up an IFTTT MAKER Applet event called "TVEvent" with a "Value1." notification format.
 IFTTT_MAKER_KEY=""     # Set to "" if you do not want IFTTT Maker notifications.  A 22-digit code.
 CURL_CLI="/usr/bin/curl"                     # Location of curl binary.  Only required if using IFTTT notifications.
-# WARNING: Do not change these two IFTTT system variables:
-IFTTT_TYPE="Content-Type: application/json"
-IFTTT_MAKER="https://maker.ifttt.com/trigger/{TVevent}/with/key/${IFTTT_MAKER_KEY}"
 
 # WARNING: Most people should leave PARALLEL_CLI blank
 # GNU parallel allows you to control the number of parallel transcoding jobs or farm out to other machines (target directory should be the same)
