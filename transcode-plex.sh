@@ -287,8 +287,9 @@ function transcode {
   if [ "${DEBUG}" -eq 1 ] ; then echo "Input file is ${fname}."; fi
   
   # Looks to see if we have direct access to comskip logs
-  if [ "$(${JQ_CLI} -r '.Processed' < "${1}.json")" == false ]; then
+  if [ "$(jq -r 'select (( .Commercials[0] )) | {ID} | join (" ")' < tmp.json )" ]; then
     notify_me "${bname} not comskippped."
+    # Add code here to call comskip directly and new options to force comskip functionality
     ctfail=1
   else
     LOGDIR="${SOURCE_DIR}/Logs/comskip/${1}/"
@@ -324,7 +325,7 @@ function transcode {
   
 
   # Commercial trimming (optional)
-  if [ "${COMTRIM}" -eq 1 ] ; then
+  if [ "${COMTRIM}" -eq 1 ] && [ "${ctfail}" -ne 1 ]; then
     # Perform the actual file splitting
     if [ ! "${ffsplit}" ] && [ -f "${2}" ]; then split="${2}"; fi  # Can use file provided via $2 if needed
     if [ "${ffsplit}" ]; then
@@ -369,7 +370,7 @@ function transcode {
   
   # COMMERCIAL MARKING
   # Instead of trimming commercials, simply mark breaks as chapters
-  if [ "${CHAPTERS}" -eq 1 ] && [ "${COMTRIM}" -ne 1 ]; then
+  if [ "${CHAPTERS}" -eq 1 ] && [ "${COMTRIM}" -ne 1 ] && [ "${ctfail}" -ne 1 ] ; then
     if [ ! "${vdr}" ] && [ -f "${2}" ]; then vdr="${2}"; fi  # Can use file provided via $2 if needed
     if [ "${vdr}" ]; then
       if [ "$VERBOSE" != 0 ] ; then echo "Adding commercial chapters to file"; fi
@@ -478,7 +479,7 @@ if [ "${SOURCE_FILE}" ]; then
   if [ "${SOURCE_FILE}" == "$(realpath "${SOURCE_FILE}")" ]; then SOURCE_FILE=$(basename "$SOURCE_FILE"); fi
 fi
 "${JQ_CLI}" -r \
-  '.[] | select ((.Airing.Raw.endTime >= "'"$since"'")) | select (.Path | contains("'"${SOURCE_FILE}"'")) | select (.Deleted == false) | {ID} | join(" ")' \
+ '.[] | select ((.Airing.Raw.endTime >= "'"$since"'")) | select (.Path | contains("'"${SOURCE_FILE}"'")) | select (.Deleted == false) | select (.Processed == true) | {ID} | join(" ")' \
   < "${jlist}" | grep -Fxv -f "${TRANSCODE_DB}" > "${rlist}"
 count=$(wc -l "${rlist}" | cut -d" " -f1)
 if [ "$count" ]; then
