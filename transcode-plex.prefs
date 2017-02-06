@@ -12,12 +12,15 @@
 #   /var/lib/transcode-plex/prefs
 #   /usr/local/lib/transcode-plex/prefs
 # All of the options set within the preferences file can be over-riden by adding them as command-line arguments:
-#   e.g. transcode-plex.sh CHAPTERS=1 COMTRIM=0 FIND_METHOD="-mtime -2" 
+#   e.g. transcode-plex.sh CHAPTERS=1 COMTRIM=0 DAYS=2
 
-SOURCE_DIR="/mnt/dvr/channels/TV"            # Location for source video recordings.  Should be the TV sub-directory of channels-dvr folders.
+SOURCE_DIR="/mnt/dvr/channels"               # Location for source video recordings.  Should be the TV sub-directory of channels-dvr folders.
 SOURCE_TYPE="ts|mkv|mpg"                     # File extension used, could be "ts" or "ts|mpg|mpeg".  Avoid "m4v" if delivering to same directory..
-DEST_DIR="/mnt/network/Plex/TV Shows"        # Desination for video recordings.  Subdirectory structure within SOURCE_DIR duplicated too..
+DEST_DIR="/mnt/network/Plex"                 # Desination for video recordings.  Should contain "TV Shows" and "Movies" subdirectories or symlinks..
 WORKING_DIR="/mnt/dvr/tmp"                   # If left blank, an arbitrary temp directory will be used.
+HOST="localhost:8089"                        # To run this remotely, add e.g. HOST="channels-dvr.local". Default is localhost.  Can be with or without port no.
+PORT=""                                      # Port can be entered separately, but is usually derived from host.
+SOURCE_PREFS=""                              # If left blank, will scan a default list of locations; CANNOT BE SET AS COMMAND LINE OVER-RIDE!
 SOURCE_FILE=""                               # If filled, specifies a particular filename and only searches for that file.  Useful for manual input.
 BACKUP_DIR=""                                # Location to deposit files if server offline.  Delete if not needed.
 CHAPTERS=1                                   # Set to mark commercials as chapters.  Doesn't work if COMTRIM enabled.
@@ -25,11 +28,18 @@ COMTRIM=0                                    # Set to 1 to trim commercials from
 DELETE_ORIG=0                                # Set to 1 to delete original files and 0 to disable.
 TEMP_COPY=0                                  # Copies input file to the working directory first; useful when running over erratic networks.
 LANG="en-US"                                 # Force MP4 file tracks to have a language; Necessary for AppleTV 4 to see chapters.			
-FIND_METHOD="-mtime -1"                      # See man find for usage.  -mtime -1 signifies the last 24 hours.  Leave blank if you want all files.  
 NICE=10                                      # For intensive tasks, set a "niceness" between 0 and 19, so as not to lock up the machine.
 VERBOSE=1                                    # 0 = quiet; 1 = normal; 2 = detailed.
-DEBUG=0                                      # For development.  Does not delete temporary directory (in WORKING_DIR) after use.  
-					     
+#DEBUG=0                                     # For development.  Over-rides command line if set to 0.  Doesn't remove TMPDIR. 
+
+# NEW FEATURE: A database is now keps of all converted files
+# This can be deleted by setting CLEAR_DB=1 from the command line, and specifying the number of DAYS for which you wish to re-initiate transcoding
+# e.g. if CLEAR_DB=0 and DAYS=1, the database will be repopulated with all existing files >1 day old, and anything from today will be transcoded.
+TRANSCODE_DB=""                              # If left blank, will search for file in same directory as SOURCE_PREFS
+CLEAR_DB=0                                   # Normally 0.  Best set on command line.  If 1, database is cleared, potentially restarting all transcode jobs again
+DAYS=""                                      # Limit transcoding to shows recorded in the last N days.  Useful if server has been down or establishing DB.
+                                             # If no database exists, files older then DAYS will be listed as already done.  Default is 10000, or 0 if CLEAR_DB=1.
+
 # Encoder presets, usually best to keep it simple.  
 PRESET="Apple 1080p30 Surround"              # HandBrakeCLI preset determines output default quality/resolution, run HandBrakeCLI -z to show list
                                              # In older versions of HandBrakeCLI, this would be "AppleTV 3".  For old/slow clients use "Apple 720p30 Surround".
@@ -37,20 +47,29 @@ PRESET="Apple 1080p30 Surround"              # HandBrakeCLI preset determines ou
 SPEED="veryfast"                             # Faster settings give theoretically larger filesizes and shorter transcode times; They do not affect quality.
                                              # In my own tests, however, despite using simpler, faster algorithms, veryfast actually produces smaller files.
 					     # The only recommended ENCODER_PRESET values are slow, medium, fast, faster, fastest, veryfast.
-MAXSIZE=1080                                 # Sets an upper limit for height; Recommended are those that give a 16:9 ratio, 1080, 720, 576, 540, 360
-ALLOW_EAC3=1                                 # EXPERIMENTAL: Enables preservation of Dolby Digital Plus (where available) in a manner playable by AppleTV 4.
+MAXSIZE=1080                                 # EXPERIMENTAL: Sets resolution limit (based on height). Works only for 16:9 ratio, e.g. 1080, 720, 576, 540, 360
+ALLOW_EAC3=0                                 # EXPERIMENTAL: Enables preservation of Dolby Digital Plus (where available) in a manner playable by AppleTV 4.
 EXTRAS=(--optimize --subtitle 1)             # Extra options set here.  Read HandBrakeCLI documentation before editing!
 
-# Locations of critical programs.  These can be shortened to just the name, or even just =1, in which case ${PATH} will be searched. 
-HANDBRAKE_CLI="/usr/local/bin/HandBrakeCLI"  # Location of HandBrakeCLI binary.  Absolutely necessary
+# Locations of programs.  These can be shortened to just the name, or even just =1, in which case ${PATH} will be searched.
+# If not specified, the script might try to find it in your PATH if it is required.
+HANDBRAKE_CLI="/usr/local/bin/HandBrakeCLI"  # Location of HandBrakeCLI binary.  Required.
+CURL_CLI="/usr/bin/curl"                     # Location of curl binary.  Required.
+JQ_CLI="/usr/bin/jq"                         # Location of jq binary.  Required.
 MP4BOX_CLI="/usr/bin/MP4Box"                 # Location of MP4Box binary (part of gpac package).  Only required if CHAPTERS=1.
 FFMPEG_CLI="/usr/bin/ffmpeg"                 # Location of ffmpeg binary.  Only required if COMTRIM=1.
-CAFFEINATE_CLI=""                            # Location of caffeinate binary.  Prevents system from sleeping if present.  Unnecessary for always-on systems.
+CAFFEINATE_CLI=""                            # Location of caffeinate binary.  Prevents sleep, typically only found on Mac.  Leave blank if not required.  
+AP_CLI=""                                    # Location of AtomicParsley binary.  Only required for iTunes file tagging.  Leave blank if not required.
+                                             # Mainline AtomicParsley is not longer maintained.  Recommend using fork: https://bitbucket.org/wez/atomicparsley/
 
-# If you want phone notifications with IFTTT, enter your IFTTT_MAKER_KEY here, and be sure to have curl on your system
+# Experimental/optional (marginal) improvements to iTunes file tagging can be had by using the TVDB API for lookups (experimental).
+TVDB_API=""                                  # Optional.  For assisting in file tagging (for adding TV network tag to iTunes).
+
+# If you want phone notifications with IFTTT, enter your own IFTTT_MAKER_KEY here, and be sure to have curl on your system
+# Please do not use someone else's IFTTT_MAKER_KEY or it will spam them
 # Also, set up an IFTTT MAKER Applet event called "TVEvent" with a "Value1." notification format.
-IFTTT_MAKER_KEY=""     # Set to "" if you do not want IFTTT Maker notifications.  A 22-digit code.
-CURL_CLI="/usr/bin/curl"                     # Location of curl binary.  Only required if using IFTTT notifications.
+IFTTT_MAKER_KEY=""                           # Set to "" if you do not want IFTTT Maker notifications.  A 22-digit code.
+
 
 # WARNING: Most people should leave PARALLEL_CLI blank
 # GNU parallel allows you to control the number of parallel transcoding jobs or farm out to other machines (target directory should be the same)
@@ -63,7 +82,7 @@ CURL_CLI="/usr/bin/curl"                     # Location of curl binary.  Only re
 #      "Apple 1080p30 Surround", veryfast, 1080i input, MAXSIZE=720:  550M
 # T.B.D. etherwake to allow Wake-on-LAN functionality
 # T.B.D. send files over GNU parallel (for erratic networks)
-PARALLEL_CLI=""             # Location of GNU parallel binary.  Note that with -j 1 this will run like a normal non-parallel task.  
+PARALLEL_CLI=""                              # Location of GNU parallel binary.  Note that with -j 1 this will run like a normal non-parallel task.  
 PARALLEL_OPTS=(-j 1 --nice $NICE --memfree 700M --noswap) 
 
 # When multiple TV shows or movies have the same name, they need to be identified by year as well in order for Plex to identify them.
