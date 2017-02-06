@@ -56,6 +56,7 @@ For most Linux users it's probably easiest to run this as a cron job, preferably
 which starts it running at 12:01am every night.  For Mac users, I've included a LaunchAgent file in this archive (com.getchannels.transcode-plex.plist), typically placed into the /Library/LaunchAgents directory. Once it's there, run the following:
 
 sudo launchctl load /Library/LaunchAgents/com.getchannels.transcode-plex.plist
+
 sudo launchctl start com.getchannels.transcode-plex
 
 The log files (transcode-plex.log and transcode-plex.err) are in /var/log, and so can be monitored easily (e.g. tail -f transcode-plex.log).
