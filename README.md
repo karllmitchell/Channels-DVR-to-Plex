@@ -10,11 +10,11 @@ Please note that this has not been thoroughly tested on all systems, and that it
 
 Although this will run on extremely underpowered systems, including ARM-based SOCs, by default I do not recommend anything with less than 1 GByte, preferable 2 GBytes, of RAM (certainly at least 750 MBytes unused).  If you are accessing the inputs files across a network, you will want a fast one (Gigabit throughout, ideally), or to set aside at least a few tens of GBytes of storage and use the TEMP_COPY=1 argument.  Many modern intel systems can almost certainly process faster-than-realtime (i.e. a 1-hr show will take less than 1-hr), but an ARM SOC like a Raspberry Pi would probably be about 6x slower than real-time, and might not keep up with your TV viewing.
 
-There is also a preferences file (transcode-plex.prefs) that probably best belongs in /var/lib/transcode-plex/ for Linux users or /Library/Application Support/transcode-plex/ with filename just "prefs".  There are a lot of settings, which are quite extensively commented within the file. Before running, you should read through and edit these, certainly if you're going to run it nightly (see below). All of these can be substituted on the command line (see examples below).  This was previously embedded in the script, but then people had to keep re-editing on each update; This seems more convenient.
+There is also a preferences file (transcode-plex.prefs) that probably best belongs in /var/lib/transcode-plex/ for Linux users or /Library/Application Support/transcode-plex/ with filename just "prefs".  There are a lot of settings, which are quite extensively commented within the file. Before running, you should read through and edit these, certainly if you're going to run it nightly (see below). All of these can be substituted on the command line (see examples below).  This was previously embedded in the script, but then people had to keep re-editing on each update; This seems more convenient.  A database of previously transcoded shows will be placed in the same directory.  You can reset this by running with CLEAR_DB=1, and selected DAYS=n, where n is the the number of days ago you wish to initialise up to, e.g. if you set DAYS=2, then it will mark all present shows of more than 2 days old as being previously processed.
 
 HandBrakeCLI is used for transcoding via ffmpeg and x264. This is easy to obtain (http://handbrake.fr/ or via apt-get, macports, etc.) and by default I have it set up to produce high quality full resolution outputs that look good on a full HDTV with Apple TV: the "Apple 1080p30 Surround" preset; This is suitable for most modern devices, but if it doesn't work for you just change it, or over-ride from the command line (see below). Both subtitles and sound are preserved from the original MPEG, and if surround sound exists then a stereo track is added for more universal compatibility. If you would like something more suitable for limited upload bandwidth, I recommend using the MAXSIZE setting (e.g. MAXSIZE=720 for 720p).  You could also try changing speed to e.g. veryslow (the speed setting trades processing load with file size, in theory, but in reality slower settings do not always produce smaller files).  Note that transcoding is done in software, and so will be a CPU hog on most systems, and thus it's worth running with "nice" set (default is 10).  It should be possible to edit the script to use hardware transcoding if desired.  I have attempted to balance output quality, file size and processor load so that it will work well for most end-users.
 
-By default, the script looks for the last 24 hours of recordings (the FIND_METHOD="-mtime -1" setting) and only converts those. If you comment this line out, or leave it blank (e.g. FIND_METHOD="") it will convert every single folder. I do not recommend this unless you're running it with DELETE_ORIG=1 (which deletes the source file).  An eventual intent is to run automatically as soon as commercial skipping is complete.
+By default, the script looks shows that it hasn't recorded before.  You can limit it to shows recorded in the past N days using the DAYS=N option (e.g. transcode-plex.sh DAYS=2). 
 
 Other interesting options are COMTRIM=1, which removes the commercials based on Channels DVR commercial detection, and CHAPTERS=1, which doesn't remove them, but does add chapter markers based on the start and end points that Plex can read. I recommend using this latter mode unless you are very confident in the commercial detection, which in my experience produces quite a few blunders unless you have tuned your comskip.ini file extremely carefully. Note that if both are set, COMTRIM will "win".
 
@@ -30,14 +30,21 @@ from the command line and it will scan the source directory (the "TV" folder whe
 
 If you would like to overload any of the options above, simply add them as arguments, e.g.
 
-transcode-plex.sh FIND_METHOD="-mmin 360" MAXSIZE=540 COMTRIM=1"
+transcode-plex.sh DAYS=1 MAXSIZE=540 COMTRIM=1
 
-will only search for files created in the last 6 hours (360 minutes) and will create smaller 540p files with commercials trimmed. Note that if previously converted this will over-write it. At some point I may implement versioning based on preset. Also, it should be noted that the arguments are case-sensitive.
+will only search for files created in the last 6 hours (360 minutes) and will create smaller 540p files with commercials trimmed. Note that it will not transcode previously finished shows until you re=initate your database (CLEAR_DB=1). Also, it should be noted that the arguments are case-sensitive.
 
 An additional option for command line execution only is to specify the show you want to convert using the SOURCE_FILE option, which can either specify the full file name, with or without path, or simply a part of that file name. It will also work if the full file path is given too, for compatibility with folder watching scripts. So both of these should work:
 
 convert-plex.sh SOURCE_FILE="2017-01-14-2059 Sherlock on Masterpiece 2017-01-08 S04E02 The Lying Detective.mpg"
 convert-plex.sh SOURCE_FILE="Sherlock"
+
+One again, if it's in your database it will not run it.  To force an old version, run twice:
+
+convert-plex.sh CLEAR_DB=1 DAYS=10000 SOURCE_FILE="Sherlock"
+convert-plex.sh CLEAR_DB=1 DAYS=0
+
+will convert all shows with "Sherlock" in the title recorded in the past 10000 days, and then will reinitiatlise the database, marking all shows present in Channels DVR as having previously been transcoded.
 
 **Daemon/cron management**
 
