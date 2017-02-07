@@ -51,16 +51,17 @@ MAXSIZE=1080                                 # EXPERIMENTAL: Sets resolution lim
 ALLOW_EAC3=0                                 # EXPERIMENTAL: Enables preservation of Dolby Digital Plus (where available) in a manner playable by AppleTV 4.
 EXTRAS=(--optimize --subtitle 1)             # Extra options set here.  Read HandBrakeCLI documentation before editing!
 
-# Locations of programs.  These can be shortened to just the name, or even just =1, in which case ${PATH} will be searched.
-# If not specified, the script might try to find it in your PATH if it is required.
-HANDBRAKE_CLI="/usr/local/bin/HandBrakeCLI"  # Location of HandBrakeCLI binary.  Required.
-CURL_CLI="/usr/bin/curl"                     # Location of curl binary.  Required.
-JQ_CLI="/usr/bin/jq"                         # Location of jq binary.  Required.
-MP4BOX_CLI="/usr/bin/MP4Box"                 # Location of MP4Box binary (part of gpac package).  Only required if CHAPTERS=1.
-FFMPEG_CLI="/usr/bin/ffmpeg"                 # Location of ffmpeg binary.  Only required if COMTRIM=1.
-CAFFEINATE_CLI=""                            # Location of caffeinate binary.  Prevents sleep, typically only found on Mac.  Leave blank if not required.  
+# Locations of programs if not in your path.  If required, the software will look for it in your path if you're not explicit (e.g. ="").
+# AP_CLI (for iTunes tagging) and CAFFEINATE_CLI (to prevent sleep) must have values specified if order for those features to work.  Just =1 will work if in PATH.
+# Full pathname, e.g. "/opt/local/bin/HandBrakeCLI" is necessary if not in PATH.
+HANDBRAKE_CLI=""                             # Location of HandBrakeCLI binary.  This software is required for the code to work.
+CURL_CLI=""                                  # Location of curl binary.  This software is required for the code to work.
+JQ_CLI=""                                    # Location of jq binary.  This software is required for the code to work.
+MP4BOX_CLI=""                                # Location of MP4Box binary (part of gpac package).  Only required if CHAPTERS=1.
+FFMPEG_CLI=""                                # Location of ffmpeg binary.  Only required if COMTRIM=1.
+CAFFEINATE_CLI=""                            # Location of caffeinate binary.  Prevents sleep, typically only found on Mac. Can substitute with other command. 
 AP_CLI=""                                    # Location of AtomicParsley binary.  Only required for iTunes file tagging.  Leave blank if not required.
-                                             # Mainline AtomicParsley is not longer maintained.  Recommend using fork: https://bitbucket.org/wez/atomicparsley/
+                                             # >0.9.6 non-mainline AtomicParsley is required.  Recommend using fork: https://bitbucket.org/wez/atomicparsley/
 
 # Experimental/optional (marginal) improvements to iTunes file tagging can be had by using the TVDB API for lookups (experimental).
 TVDB_API=""                                  # Optional.  For assisting in file tagging (for adding TV network tag to iTunes).
