@@ -15,11 +15,10 @@
 #   e.g. transcode-plex.sh CHAPTERS=1 COMTRIM=0 DAYS=2
 
 # Information specific to your local system
-SOURCE_DIR="/mnt/dvr/channels"               # Location for source video recordings.  Should be the TV sub-directory of channels-dvr folders.
-DEST_DIR="/mnt/network/Plex"                 # Desination for video recordings.  Should contain "TV Shows" and "Movies" subdirectories or symlinks..
-WORKING_DIR="/mnt/dvr/tmp"                   # If left blank, an arbitrary temp directory will be used.
-HOST="localhost:8089"                        # To run this remotely, add e.g. HOST="channels-dvr.local". Default is localhost.  Can be with or without port no.
-PORT=""                                      # Port can be entered separately, but is usually derived from host.
+DEST_DIR="/mnt/network/Plex"                 # Desination for video recordings.  Should contain "TV Shows" and "Movies" subdirectories, or symlinks to them.
+SOURCE_DIR=""                                # Channels DVR folder (see Channels web interface settings) if NFS/SMB/AFP mounted.  Leave blank if running locally.  
+WORKING_DIR=""                               # If left blank, /tmp is used.  Useful if local space is limited, as can require many GB.
+HOST=""                                      # To run this remotely, add e.g. HOST="channels-dvr.local". Default: localhost:8089.  If no port, 8089 assumed.
 SOURCE_PREFS=""                              # If left blank, will scan a default list of locations; CANNOT BE SET AS COMMAND LINE OVER-RIDE!
 BACKUP_DIR=""                                # Location to deposit files if server offline.  Leave empty if not needed.
 
@@ -33,6 +32,7 @@ TEMP_COPY=0                                  # Copies input file to the working 
 LANG="en-US"                                 # Force MP4 file tracks to have a language; Necessary for AppleTV 4 to see chapters.			
 NICE=10                                      # For intensive tasks, set a "niceness" between 0 and 19, so as not to lock up the machine.
 VERBOSE=1                                    # 0 = quiet; 1 = normal; 2 = detailed.
+BUSY_WAIT=1                                  # Waits up to 4 hours for Channels to stop recording or comskipping if set.
 DEBUG=0                                      # For development.  More explicit output.  Doesn't remove TMPDIR at the end.
 
 # NEW FEATURE: A database is now kept of all converted files
