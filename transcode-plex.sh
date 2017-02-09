@@ -80,6 +80,7 @@ if [ ! "${SOURCE_PREFS}" ]; then
     if [ -f "${i}" ]; then SOURCE_PREFS="${i}"; break ; fi
   done
 fi
+
 if [ "${SOURCE_PREFS}" ]; then
   # spellcheck source=/dev/null
   PREFS_DIR="$(dirname "${SOURCE_PREFS}")"
@@ -112,15 +113,18 @@ if [ $# -gt 0 ] ; then
   done
 fi
 
-#if [ ${DEBUG} -eq 1 ] ; then echo "Listing all variables"; env; fi
-
+# Read Source Directory from API
+if [ ! "${SOURCE_DIR}" ]; then SOURCE_DIR=$(curl -s http://192.168.2.2:8089/dvr/files/../../dvr | jq -r '.path'); fi
+if [ ! -d "${SOURCE_DIR}" ] ; then
+  SOURCE_DIR=""
+  [ "${VERBOSE}" -ne 0 ] && echo "Cannot read Channels source directory.  Functioning remotely via API only."
+fi
 
 ## ESTABLISH PRESENCE OF CLI INTERFACES
 # Essential...
 program="HandBrakeCLI"; if [ ! -f "${HANDBRAKE_CLI}" ]; then HANDBRAKE_CLI=$(which ${program}) || (notify_me "${program} missing"; exit 9); fi
 program="curl"; if [ ! -f "${CURL_CLI}" ]; then CURL_CLI=$(which ${program}) || (notify_me "${program} missing"; exit 9); fi
 program="jq"; if [ ! -f "${JQ_CLI}" ]; then JQ_CLI=$(which ${program}) || (notify_me "${program} missing"; exit 9); fi
-
 # Optional
 if [ "${CAFFEINATE_CLI}" ]; then
   program="caffeinate"; if [ ! -f "${CAFFEINATE_CLI}" ]; then CAFFEINATE_CLI=$(which ${program}) || (notify_me "${program} missing"; exit 9); fi
@@ -146,8 +150,7 @@ if [ "$AP_CLI" ]; then
     AP_CLI=""
   fi
 fi
-
-if [ "${DEBUG}" -eq 1 ] ; then echo "All required programs found."; fi
+[ "${DEBUG}" -eq 1 ] && echo "All required programs found."
 
 ## REPORT PROGRESS, OPTIONALLY VIA PHONE NOTIFICATIONS
 # Customise if you have an alternative notification system
@@ -172,14 +175,13 @@ function notify_me {
 }
 export -f notify_me
    
-## TEST FOR PRESENCE OF API INTERFACE
-if [ ! "${HOST}" ]; then HOST="localhost"; fi
+## TEST FOR PRESENCE OF API INTERFACE (ESSENTIAL)
+if [ ! "${HOST}" ]; then HOST="localhost:8089"; fi
 regex="(.*):(.*)"
-if [[ "${HOST}" =~ ${regex} ]]; then HOST="${BASH_REMATCH[1]}"; PORT="${BASH_REMATCH[2]}"; fi
-if [ ! "${PORT}" ]; then PORT="8089"; fi
+if [[ "${HOST}" =~ ${regex} ]]; then HOST="${BASH_REMATCH[1]}"; PORT="${BASH_REMATCH[2]}"; else PORT=8089; fi
 CHANNELS_DB="http://${HOST}:${PORT}/dvr/files"
 ${CURL_CLI} -sSf "${CHANNELS_DB}" > /dev/null || (notify_me "Cannot find API at ${CHANNELS_DB}"; exit 14)
-if [ "$VERBOSE" -ne 0 ] ; then echo "Channels DVR API Interface Found."; fi
+[ "${VERBOSE}" -ne 0 ] && echo "Channels DVR API Interface Found"
 
         
 ## CREATE AND GO TO A TEMPORARY WORKING DIRECTORY
@@ -187,7 +189,7 @@ cwd=$(pwd)
 if [ ! "${WORKING_DIR}" ]; then WORKING_DIR="/tmp"; fi
 TMPDIR=$(mktemp -d ${WORKING_DIR}/transcode.XXXXXXXX) || exit 2
 cd "${TMPDIR}" || ( notify_me "Cannot access ${WORKING_DIR}"; exit 2 )
-if [ "$VERBOSE" -ne 0 ] ; then echo "Working directory: ${TMPDIR}"; fi 
+[ "$VERBOSE" -ne 0 ] &&  echo "Working directory: ${TMPDIR}" 
 
 
 ## CREATE FUNCTION TO CLEAN UP AFTER YOURSELF
@@ -267,9 +269,12 @@ function transcode {
   # Fix naming convention of output file 
   if [ "${rectype}" == "TV Show" ]; then
     bname="${showname} - S${season}E${episode} - ${title}"
+    AP_OPTS=(--title "${title}" --TVShowName "${showname}" --TVEpisode "${season}${episode}" --TVEpisodeNum "$episode" --TVSeason "$season")
+    AP_OPTS+=(--genre "TV Shows" --stik "TV Show") 
   fi
   if [ "${rectype}" == "Movie" ]; then
     bname="${showname} (${year})"
+    AP_OPTS=(--title "${showname}" --genre "Movies" --stik "Movie")
   fi
   
   # Determine if file already available on local system.  Download via API if not.
@@ -277,59 +282,34 @@ function transcode {
   if [ ! -f "${fname}" ] ; then
     if [ -f "${ifile}" ] ; then
       ln -s "${ifile}" "${fname}"
-      if [ "$VERBOSE" -eq 2 ] ; then echo "Linking to local system copy of ${bname}"; fi
+      [ "$VERBOSE" -eq 2 ] && echo "Linking to local system copy of ${bname}"
     else
       "${CURL_CLI}" -s -o "${fname}" "${CHANNELS_DB}/${1}/stream.${extension}"
-      if [ "$VERBOSE" -eq 2 ] ; then echo "${bname} downloading from API"; fi
+      [ "$VERBOSE" -eq 2 ] && echo "${bname} downloading from API"
     fi
   fi
-  if [ ! -f "${fname}" ] ; then notify_me "Cannot find input file"; exit 4 ; fi
-  if [ "${DEBUG}" -eq 1 ] ; then echo "Input file is ${fname}."; fi
+  [ ! -f "${fname}" ] && ( notify_me "Cannot find input file"; exit 4 )
+  [ "${DEBUG}" -eq 1 ] && echo "Input file is ${fname}."
+ 
   
   # Looks to see if we have direct access to comskip logs
   if [ "$(jq -r 'select (( .Commercials[0] )) | {ID} | join (" ")' < tmp.json )" ]; then
     notify_me "${bname} not comskippped."
     # Add code here to call comskip directly and new options to force comskip functionality
     ctfail=1
-  else
-    LOGDIR="${SOURCE_DIR}/Logs/comskip/${1}/"
-    if [ -d "${LOGDIR}" ] ; then
-      if [ -f "${LOGDIR}/video.ffsplit" ]; then ffsplit="${SOURCE_DIR}/Logs/comskip/${1}/video.ffsplit"; fi
-      if [ -f "${LOGDIR}/video.vdr" ]; then vdr="${SOURCE_DIR}/Logs/comskip/${1}/video.vdr"; fi
-    else
-      commercials=($(${JQ_CLI} -r '.Commercials[]' < "${1}.json"))
-      nmax=${#commercials[@]}
-      
-      # Create local vdr file for chapters
-      n=0; vdr="${1}.vdr"
-      for secs in "${commercials[@]}"; do
-        n++
-        printf '%02d:%02d:%02d.%02d %s\n' "$((${secs%.*}/3600))" "$((${secs%.*}%3600/60))" "$((${secs%.*}%60))" $"{secs##*.}" "Chapter $n" > "${vdr}"
-      done
-      
-      # Create local ffsplit file for commercial trimming
-      dur1=0; dur2=0; n=0; ffsplit="${1}.ffsplit"
-      for i in $(seq 1 2 $((nmax-2))); do
-        dur1=$(echo "${dur1} + ${commercials[$((i+0))]} - ${commercials[$((i-1))]}" | bc)  # 0-1,2-3, etc.
-	dur2=$(echo "${dur2} + ${commercials[$((i+1))]} - ${commercials[$((i+0))]}" | bc)  # 1-2,3-4, etc.
-      done
-      
-      if [ "${dur2%.*}" -gt "${dur1%.*}" ]; then nstart=1; else nstart=0; fi
-      for i in $(seq ${nstart} 2 $((nmax-2))); do
-        n++
-	printf "%s %.3f %s %.3f segment%03d.ts\n" \
-	  "-c copy -ss" "${commercials[i]}" "-t" "$(echo "${commercials[$((i+1))]} - ${commercials[$((i+0))]}" | bc)" "$n" >> "${ffsplit}"
-      done
-    fi
   fi
-  
 
   # Commercial trimming (optional)
   if [ "${COMTRIM}" -eq 1 ] && [ "${ctfail}" -ne 1 ]; then
     # Perform the actual file splitting
-    if [ ! "${ffsplit}" ] && [ -f "${2}" ]; then split="${2}"; fi  # Can use file provided via $2 if needed
-    if [ "${ffsplit}" ]; then
-      if [ "$VERBOSE" -ne 0 ] ; then echo "Attempting to trim input file"; fi  
+    if [ -f "${2}" ]; then
+      ffsplit="${2}"   # Can use file provided via $2 if needed
+    else
+      curl -s "http://192.168.2.2:8089/dvr/files/${1}/comskip.ffsplit" > "${1}.ffsplit"; ffsplit="${1}.ffsplit"
+    fi 
+    
+    if [ -f "${ffsplit}" ]; then
+      [ "$VERBOSE" -ne 0 ] && echo "Attempting to trim input file"
       while read -r split <&3; do
         "${FFMPEG_CLI}" -i "${fname}" "${split}" || ctfail=1
       done 3< "${ffsplit}" 
@@ -345,7 +325,7 @@ function transcode {
     
     if [ ${ctfail} -eq 0 ]; then
       mv -f "${bname}_cut.${extension}" "${fname}"
-      if [ "$VERBOSE" -ne 0 ] ; then echo "Commercial trimming was successful"; fi
+      [ "$VERBOSE" -ne 0 ] && echo "Commercial trimming was successful"
     else
       notify_me "${bname} commercial trim failed. Using un-trimmed file."
     fi 
@@ -356,9 +336,12 @@ function transcode {
   echo "Attempting to transcode ${fname} ..."
   if [ "$MAXSIZE" ]; then EXTRAS+=(--maxHeight "$MAXSIZE" --maxWidth $((MAXSIZE * 16 / 9))); fi
   if [ "${ALLOW_EAC3}" -eq 1 ]; then EXTRAS+=(-E "ffaac,copy" --audio-copy-mask "eac3,ac3,aac"); fi 
-  #if [ "$VERBOSE" -ne 0 ] ; then
-  #  echo \"${HANDBRAKE_CLI}\" -v \""${VERBOSE}"\" -i \""${fname}"\" -o \""${bname}.m4v"\" --preset=\""${PRESET}"\" --encoder-preset=\""${SPEED}"\" "${EXTRAS[@]}"
-  #fi
+  if [ "$VERBOSE" -ne 0 ] ; then
+    for arg in "${HANDBRAKE_CLI}" -v "${VERBOSE}" -i "${fname}" -o "${1}.m4v" --preset="${PRESET}" --encoder-preset="${SPEED}" "${EXTRAS[@]}"; do
+      if [[ $arg =~ \  ]]; then arg=\"$arg\"; fi
+      echo -n "$arg "
+    done; echo
+  fi
   if "${HANDBRAKE_CLI}" -v "${VERBOSE}" -i "${fname}" -o "${1}.m4v" --preset="${PRESET}" --encoder-preset="${SPEED}" "${EXTRAS[@]}" ; then
     rm -f "${fname}" # Delete tmp input file/link  
   else
@@ -371,45 +354,48 @@ function transcode {
   # COMMERCIAL MARKING
   # Instead of trimming commercials, simply mark breaks as chapters
   if [ "${CHAPTERS}" -eq 1 ] && [ "${COMTRIM}" -ne 1 ] && [ "${ctfail}" -ne 1 ] ; then
-    if [ ! "${vdr}" ] && [ -f "${2}" ]; then vdr="${2}"; fi  # Can use file provided via $2 if needed
-    if [ "${vdr}" ]; then
-      if [ "$VERBOSE" != 0 ] ; then echo "Adding commercial chapters to file"; fi
-      if "${MP4BOX_CLI}" -lang "${LANG}" -chap "${bname}.vdr" "${1}.m4v"; then
-        if [ "$VERBOSE" != 0 ] ; then echo "Commercial marking succeeded"; fi
-      else
-        # Transcode has failed, so report that but don't give up on the rest
-        notify_me "Failed to add commercial markers to ${bname}."
-      fi
+    if [ -f "${2}" ]; then
+      vdr="${2}";
     else
-      notify_me "Couldn't find ${vdr} for marking chapters."
+      curl -s "http://192.168.2.2:8089/dvr/files/${1}/comskip.vdr" > "${1}.vdr"; vdr="${1}.vdr"  
+    fi  # Can use file provided via $2 if needed
+    
+    if [ -f "${vdr}" ]; then
+      "${MP4BOX_CLI}" -lang "${LANG}" -chap "${vdr}" "${1}.m4v" || ctfail=1
+      [ "$VERBOSE" -eq 0 ] && echo "Commercials marked"
+    else
+      ctfail=1
     fi
   fi
+  [ ${ctfail} -eq 1 ] && notify_me "Unable to mark commercials as chapters"
 
   # TAGGING
   if [ "$AP_CLI" ]; then
     # Basic tags
-    genre="$(${JQ_CLI} -r '.Airing.Genres[0]' < "${1}.json")"
-    rating="$(${JQ_CLI} -r '.Airing.Raw.ratings[0].code' < "${1}.json")"
-    description="$(${JQ_CLI} -r '.Airing.Raw.program.shortDescription' < "${1}.json")"
-    longdesc="$(${JQ_CLI} -r '.Airing.Raw.program.longDescription' < "${1}.json")"
-    year="$(${JQ_CLI} -r '.Airing.Raw.program.releaseYear' < "${1}.json")"
-    cnid="$(${JQ_CLI} -r '.Airing.ProgramID' < "${1}.json" | cut -c3-)"
+    AP_OPTS+=(--geID "$(${JQ_CLI} -r '.Airing.Genres[0]' < "${1}.json")")
+    AP_OPTS+=(--contentRating "$(${JQ_CLI} -r '.Airing.Raw.ratings[0].code' < "${1}.json")")
+    AP_OPTS+=(--description "$(${JQ_CLI} -r '.Airing.Raw.program.shortDescription' < "${1}.json")")
+    AP_OPTS+=(--longdesc "$(${JQ_CLI} -r '.Airing.Raw.program.longDescription' < "${1}.json")")
+    AP_OPTS+=(--year "$(${JQ_CLI} -r '.Airing.Raw.program.releaseYear' < "${1}.json")")
+    AP_OPTS+=(--cnid "$(${JQ_CLI} -r '.Airing.ProgramID' < "${1}.json" | cut -c3-)")
     tmsID="$(${JQ_CLI} -r '.Airing.ProgramID' < "${1}.json" | cut -c1-10)"
+    show="$(${JQ_CLI} -r '.Airing.Title' < "${1}.json")"
     #type="$(${JQ_CLI} -r '.Airing.Raw.program.entityType' < "${1}.json")"
     #subtype="$(${JQ_CLI} -r '.Airing.Raw.program.subType' < "${1}.json")"
-    show="$(${JQ_CLI} -r '.Airing.Title' < "${1}.json")"  
-      
+     
     # HD tags
     hdvideo=0
     #width="$(${JQ_CLI} '.streams[] | select(.codec_type == "video") | .width' < "${1}_mi.json")"
     height="$(${JQ_CLI} '.streams[] | select(.codec_type == "video") | .height' < "${1}_mi.json")"
     if [ "$height" -gt 700 ]; then hdvideo=1; fi
     if [ "$height" -gt 1000 ]; then hdvideo=2; fi
+    [ "${hdvideo}" ] && AP_OPTS+=(--hdvideo $hdvideo)
     
     # Image tags
     imageloc="$(${JQ_CLI} -r '.Airing.Image' < "${1}.json")"
     artwork="${1}.jpg"
     "${CURL_CLI}" -s -o "${artwork}" -O "${imageloc}"
+    [ -f "${artwork}" ] && AP_OPTS+=(--artwork "${artwork}") 
     
     # Network name
     if [ "${TVDB_API}" ] && [ "${rectype}" == "TV Show" ] ; then
@@ -423,17 +409,18 @@ function transcode {
         network="$("${CURL_CLI}" "${tvdb_opts[@]}" "${tvdb}/search/series?name=${show// /%20})" | ${JQ_CLI} -r '.data[0].network')"
       else
         network=$("${CURL_CLI}" "${tvdb_opts[@]}" "${tvdb}/series?id=${showid}" | ${JQ_CLI} '.data[0].network')
-      fi         
+      fi
+      [ "${network}" ] && AP_OPTS+=(--TVNetwork "${network}")   
     fi
     
-    if [ "${rectype}" == "TV Show" ]; then
-      "${AP_CLI}" "${1}.m4v" --genre "TV Shows" --stik "TV Show" --hdvideo $hdvideo --cnid "${cnid}" --title "${title}" \
-      --TVNetwork "${network}" --TVShowName "${show}" --TVEpisode "${season}${episode}" --TVEpisodeNum "$episode" --TVSeason "$season" \
-      --year "${year}" --artwork "${artwork}" --contentRating "${rating}" --description "${description}" --longdesc "${longdesc}" --geID "${genre}" 
-    else
-      "${AP_CLI}" "${1}.m4v" --genre "Movies" --stik "Movie" --hdvideo $hdvideo --cnid "${cnid}" --title "${showname}" \
-      --year "${year}" --artwork "${artwork}" --contentRating "${rating}" --description "${description}" --longdesc "${longdesc}" --geID "${genre}"  
+    # Command that actually does the tagging!
+    if [ "$VERBOSE" -ne 0 ] ; then
+      for arg in "${AP_CLI}" "${1}.m4v" "${AP_OPTS[@]}"; do
+        if [[ $arg =~ \  ]]; then arg=\"$arg\"; fi
+        echo -n "$arg "
+      done; echo
     fi
+    "${AP_CLI}" "${1}.m4v" "${AP_OPTS[@]}"
   fi
   
   
@@ -446,12 +433,12 @@ function transcode {
       tdname="${DEST_DIR}/Movies/${showname}"
     fi
     if mkdir -p "${tdname}"; then
-      if [ "$VERBOSE" -eq 2 ] ; then echo "Target directory okay"; fi
+      [ "$VERBOSE" -eq 2 ] && echo "Target directory okay"
     else
       notify_me "${tdname} inaccessible.  Bailing."; exit 5
     fi
     if mv -f "${1}.m4v" "${tdname}/${bname}.m4v"; then
-      if [ "$VERBOSE" -eq 2 ] ; then echo "Delivered"; fi
+      [ "$VERBOSE" -eq 2 ] && echo "Delivered"
     else
       if [ "${BACKUP_DIR}" ]; then    
         mv -f "${1}.m4v" "${BACKUP_DIR}/${bname}.m4v" || (notify_me "${bname}.m4v undeliverable"; return 5)
@@ -468,6 +455,15 @@ function transcode {
 export -f transcode
 
 
+# Wait until the system is done with recording and commercial skipping
+busy=$(curl -s http://192.168.2.2:8089/dvr/files/../../dvr | jq '.busy')
+if [ ! "${BUSY_WAIT}" -eq 0 ] && [ "${busy}" == true ] ; then
+  notify_me "Waiting (max 4 hours) until Channels is no longer busy.  Set BUSY_WAIT=0 to prevent."
+  while [ $SECONDS -lt 14400 ] || [ "${busy}" == true ] ; do
+    wait 60
+    busy=$(curl -s http://192.168.2.2:8089/dvr/files/../../dvr | jq '.busy')
+  done
+fi
 
 ## SEARCH API FOR RECORDINGS IN THE LAST $DAYS NUMBER OF DAYS THAT ARE NOT IN THE TRANSCODE DB.
 # If none can be accessed, quit, otherwise report on how many shows to do.
@@ -478,9 +474,13 @@ jlist="${TMPDIR}/recordings.json"
 if [ "${SOURCE_FILE}" ]; then
   if [ "${SOURCE_FILE}" == "$(realpath "${SOURCE_FILE}")" ]; then SOURCE_FILE=$(basename "$SOURCE_FILE"); fi
 fi
+
+# Creates a list of new shows (optionally that match search criteria)
 "${JQ_CLI}" -r \
  '.[] | select ((.Airing.Raw.endTime >= "'"$since"'")) | select (.Path | contains("'"${SOURCE_FILE}"'")) | select (.Deleted == false) | select (.Processed == true) | {ID} | join(" ")' \
   < "${jlist}" | grep -Fxv -f "${TRANSCODE_DB}" > "${rlist}"
+
+# Report how many news shows have been found
 count=$(wc -l "${rlist}" | cut -d" " -f1)
 if [ "$count" ]; then
   notify_me "Found ${count} new shows to transcode."
@@ -491,12 +491,13 @@ fi
 
 ## RUN THE MAIN LOOP TO ACTIVATE TRANSCODING JOBS
 # Optionally via GNU parallel
+# To do: Only add shows to transcode database if successful, or remove them if unsuccessfulaaaa
 if [ "$PARALLEL_CLI" ]; then
   if [ "$COMTRIM" == 1 ]; then PARALLEL_OPTS+=(--delay 120); fi
   PARALLEL_OPTS+=(--joblog "progress.txt" --results progress --progress)
   # The following need to be exported to use GNU parallel:
-  export DEST_DIR HANDBRAKE_CLI COMTRIM VERBOSE FFMPEG_CLI MAXSIZE ALLOW_EAC3 PRESET SPEED EXTRAS SOURCE_DIR \
-    CHAPTERS MP4BOX_CLI LANG BACKUP_DIR DELETE_ORIG CURL_CLI JQ_CLI IFTTT_MAKER_KEY CHANNELS_DB TMPDIR DEBUG
+  export HANDBRAKE_CLI MP4BOX_CLI JQ_CLI FFMPEG_CLI COMTRIM VERBOSE MAXSIZE PRESET SPEED EXTRAS SOURCE_DIR \
+    CHAPTERS DEST_DIR LANG BACKUP_DIR DELETE_ORIG CURL_CLI IFTTT_MAKER_KEY CHANNELS_DB TMPDIR ALLOW_EAC3 DEBUG 
   export -f showname_clean
   parallel --record-env
   parallel --env _ "${PARALLEL_OPTS[@]}" -a "${rlist}" transcode {}
