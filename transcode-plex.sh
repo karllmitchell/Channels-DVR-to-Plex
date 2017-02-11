@@ -386,7 +386,7 @@ function transcode {
     AP_OPTS+=(--description "$(${JQ_CLI} -r '.Airing.Raw.program.shortDescription' < "${1}.json")")
     AP_OPTS+=(--longdesc "$(${JQ_CLI} -r '.Airing.Raw.program.longDescription' < "${1}.json")")
     AP_OPTS+=(--year "$(${JQ_CLI} -r '.Airing.Raw.program.releaseYear' < "${1}.json")")
-    AP_OPTS+=(--cnid "$(${JQ_CLI} -r '.Airing.ProgramID' < "${1}.json" | cut -c3-)")
+    AP_OPTS+=(--cnID "$(${JQ_CLI} -r '.Airing.ProgramID' < "${1}.json" | cut -c3-)")
     tmsID="$(${JQ_CLI} -r '.Airing.ProgramID' < "${1}.json" | cut -c1-10)"
     show="$(${JQ_CLI} -r '.Airing.Title' < "${1}.json")"
     #type="$(${JQ_CLI} -r '.Airing.Raw.program.entityType' < "${1}.json")"
