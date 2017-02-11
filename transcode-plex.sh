@@ -314,7 +314,7 @@ function transcode {
     if [ -f "${2}" ]; then
       ffsplit="${2}"   # Can use file provided via $2 if needed
     else
-      curl -s "http://192.168.2.2:8089/dvr/files/${1}/comskip.ffsplit" > "${1}.ffsplit"; ffsplit="${1}.ffsplit"
+      curl -s "${CHANNELS_DB}/${1}/comskip.ffsplit" > "${1}.ffsplit"; ffsplit="${1}.ffsplit"
     fi 
     
     if [ -f "${ffsplit}" ]; then
@@ -366,7 +366,7 @@ function transcode {
     if [ -f "${2}" ]; then
       vdr="${2}";
     else
-      curl -s "http://192.168.2.2:8089/dvr/files/${1}/comskip.vdr" > "${1}.vdr"; vdr="${1}.vdr"  
+      curl -s "${CHANNELS_DB}/${1}/comskip.vdr" > "${1}.vdr"; vdr="${1}.vdr"  
     fi  # Can use file provided via $2 if needed
     
     if [ -f "${vdr}" ]; then
