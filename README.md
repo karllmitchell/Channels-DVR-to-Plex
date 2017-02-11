@@ -98,3 +98,9 @@ iii) Passwordless logins set up with ssh-keygen for remote ssh sessions on targe
 iv) To read documentation on GNU parallel. This is not for beginners, and you will need to set up your system correctly to be able to use it.
 
 Note that additional options (which can be edited in PARALLEL_OPTS) have been added to GNU parallel over the years, and at least one of those, specifically --memfree, I use. Please either update to a 2016+ version or, if you have problems, delete the "--memfree 700 M". (Note that my own tests have shown that the default settings {PRESET="Apple 1080p Surround", SPEED="veryfast", MAXSIZE=1080} have shown that 700 MBytes is about right if the source is 1080p, and 425 Mbytes if the source is 720p. These things are best to tune for yourself.)
+
+** Other scripts **
+
+Over time I will be adding other scripts to this archive.
+
+The first is *channels-transcode.sh*, which is a cut-down version of the transcode-plex.sh script which transcodes a single Channels DVR recording by number typically directly into the current directory, adds chapters based on comskip results (by default), options tags for iTunes (if AP_CLI set) or trims commercials (if COMTRIM=1), and optionally places into a Plex-like directory structure (if DEST_DIR is set).  This may be useful for those who would like to use the transcoding and API inspection capability in a different manner than already implemented, e.g. independent of Plex, independent of the TRANSCODE_DB, etc.  It does not clean up after itself, so you may wish to run it in a temporary directory.  It can be run locally to the Channels DVR server or remotely (using e.g. the HOST="distant.server:8089" option).  Many other options can be set using command line arguments as per the transcode-plex.sh script.
