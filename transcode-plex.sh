@@ -122,12 +122,6 @@ for i in ${WORKING_DIR/ /\ }/${TMP_PREFIX}.*/progress.txt; do
   rm -rf "$(dirname "${i}")" || notify_me "Cannot delete ${i}.  Please do so manually."
 done
 
-# Read Source Directory from API
-if [ ! "${SOURCE_DIR}" ]; then SOURCE_DIR=$(curl -s http://192.168.2.2:8089/dvr/files/../../dvr | jq -r '.path'); fi
-if [ ! -d "${SOURCE_DIR}" ] ; then
-  SOURCE_DIR=""
-  [ "${VERBOSE}" -ne 0 ] && echo "Cannot read Channels source directory.  Functioning remotely via API only."
-fi
 
 ## ESTABLISH PRESENCE OF CLI INTERFACES
 # Essential...
@@ -192,6 +186,12 @@ CHANNELS_DB="http://${HOST}:${PORT}/dvr/files"
 ${CURL_CLI} -sSf "${CHANNELS_DB}" > /dev/null || (notify_me "Cannot find API at ${CHANNELS_DB}"; exit 14)
 [ "${VERBOSE}" -ne 0 ] && echo "Channels DVR API Interface Found"
 
+# Read Source Directory from API
+if [ ! "${SOURCE_DIR}" ]; then SOURCE_DIR=$(curl -s "${CHANNELS_DB}/../../dvr" | jq -r '.path'); fi
+if [ ! -d "${SOURCE_DIR}" ] ; then
+  SOURCE_DIR=""
+  [ "${VERBOSE}" -ne 0 ] && echo "Cannot read Channels source directory.  Functioning remotely via API only."
+fi
         
 ## CREATE AND GO TO A TEMPORARY WORKING DIRECTORY
 cwd=$(pwd)
@@ -465,12 +465,12 @@ export -f transcode
 
 
 # Wait until the system is done with recording and commercial skipping
-busy=$(curl -s http://192.168.2.2:8089/dvr/files/../../dvr | jq '.busy')
+busy=$(curl -s "${CHANNELS_DB}/../../dvr" | jq '.busy')
 if [ ! "${BUSY_WAIT}" -eq 0 ] && [ "${busy}" == true ] ; then
   notify_me "Waiting (max 4 hours) until Channels is no longer busy.  Set BUSY_WAIT=0 to prevent."
   while [ $SECONDS -lt 14400 ] || [ "${busy}" == true ] ; do
     wait 60
-    busy=$(curl -s http://192.168.2.2:8089/dvr/files/../../dvr | jq '.busy')
+    busy=$(curl -s "${CHANNELS_DB}/../../dvr" | jq '.busy')
   done
 fi
 
