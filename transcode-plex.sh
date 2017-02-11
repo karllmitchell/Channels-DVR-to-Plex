@@ -63,6 +63,7 @@ function ver {
   printf "%03d%03d%03d%03d" $(echo "$1" | tr '.' ' ' | head -n 4 )
 }
 
+## INITIATION
 # Reads initiation variables
 if [ $# -gt 0 ] ; then
   for var in "$@"; do
@@ -112,6 +113,14 @@ if [ $# -gt 0 ] ; then
     esac
   done
 fi
+
+# Search through temporary directory to find any stalled jobs
+[ ! "$TMP_PREFIX" ] && TMP_PREFIX="transcode" 
+for i in ${WORKING_DIR/ /\ }/${TMP_PREFIX}.*/progress.txt; do
+  notify_me "Found incomplete jobs in ${i}.  Cleaning directory and updating database where necessary."  
+  grep transcode < "${i}" | awk '$7 == 0 {print $10}' >> "${TRANSCODE_DB}"
+  rm -rf "$(dirname "${i}")" || notify_me "Cannot delete ${i}.  Please do so manually."
+done
 
 # Read Source Directory from API
 if [ ! "${SOURCE_DIR}" ]; then SOURCE_DIR=$(curl -s http://192.168.2.2:8089/dvr/files/../../dvr | jq -r '.path'); fi
@@ -187,7 +196,7 @@ ${CURL_CLI} -sSf "${CHANNELS_DB}" > /dev/null || (notify_me "Cannot find API at 
 ## CREATE AND GO TO A TEMPORARY WORKING DIRECTORY
 cwd=$(pwd)
 if [ ! "${WORKING_DIR}" ]; then WORKING_DIR="/tmp"; fi
-TMPDIR=$(mktemp -d ${WORKING_DIR}/transcode.XXXXXXXX) || exit 2
+TMPDIR=$(mktemp -d ${WORKING_DIR}/${TMP_PREFIX}.XXXXXXXX) || exit 2
 cd "${TMPDIR}" || ( notify_me "Cannot access ${WORKING_DIR}"; exit 2 )
 [ "$VERBOSE" -ne 0 ] &&  echo "Working directory: ${TMPDIR}" 
 
@@ -266,7 +275,7 @@ function transcode {
     echo "Cannot identify type of file based on filename."
   fi
   
-  # Fix naming convention of output file 
+  # Fix naming convention of output file and pre-build some iTunes tags
   if [ "${rectype}" == "TV Show" ]; then
     bname="${showname} - S${season}E${episode} - ${title}"
     AP_OPTS=(--title "${title}" --TVShowName "${showname}" --TVEpisode "${season}${episode}" --TVEpisodeNum "$episode" --TVSeason "$season")
@@ -496,17 +505,39 @@ if [ "$PARALLEL_CLI" ]; then
   if [ "$COMTRIM" == 1 ]; then PARALLEL_OPTS+=(--delay 120); fi
   PARALLEL_OPTS+=(--joblog "progress.txt" --results progress --progress)
   # The following need to be exported to use GNU parallel:
-  export HANDBRAKE_CLI MP4BOX_CLI JQ_CLI FFMPEG_CLI COMTRIM VERBOSE MAXSIZE PRESET SPEED EXTRAS SOURCE_DIR \
-    CHAPTERS DEST_DIR LANG BACKUP_DIR DELETE_ORIG CURL_CLI IFTTT_MAKER_KEY CHANNELS_DB TMPDIR ALLOW_EAC3 DEBUG 
+  export HANDBRAKE_CLI MP4BOX_CLI JQ_CLI FFMPEG_CLI CURL_CLI AP_CLI \
+    PRESET SPEED EXTRAS MAXSIZE ALLOW_EAC3 \
+    DEST_DIR SOURCE_DIR BACKUP_DIR CHANNELS_DB TMPDIR  \
+    COMTRIM CHAPTERS LANG DELETE_ORIG IFTTT_MAKER_KEY TVDB_API VERBOSE DEBUG 
   export -f showname_clean
   parallel --record-env
   parallel --env _ "${PARALLEL_OPTS[@]}" -a "${rlist}" transcode {}
-  cat "${rlist}" >> "${TRANSCODE_DB}" || ( notify_me "Couldn't update transcode database"; exit 13 )
+  
+  flist=""
+  for i in ${rlist}; do
+    if [ "$(grep "transcode ${i}" < progress.txt | awk '{print $7}')" -eq 0 ]; then
+      echo "${i}" >> "${TRANSCODE_DB}" || ( notify_me "Couldn't update transcode database"; exit 13 )
+    else
+      flist+="${i} "
+    fi
+  done
 else 
-  while read -r i ; do transcode "${i}"; echo "${i}" >> "${TRANSCODE_DB}" || ( notify_me "Couldn't update transcode database"; exit 13 ); done < "${rlist}"
+  flist=""
+  while read -r i ; do
+    if [ "$(transcode "${i}")" ]; then
+      echo "${i}" >> "${TRANSCODE_DB}" || ( notify_me "Couldn't update transcode database"; exit 13 )
+    else
+      flist+="${i} " 
+    fi
+  done < "${rlist}"
 fi
 
-notify_me "All transcoding complete"
+if [ "${flist}" ]; then
+  notify_me "Transcoding complete.  Failed to transcode the following recording(s): ${flist}"
+else
+  notify_me "Transcoding completed successfully"
+fi
+
 if [ -f "${CAFFEINATE_CLI}" ]; then kill -9 ${cpid} ; fi
 
 # Exit cleanly
@@ -523,3 +554,4 @@ exit 0
 #9: E: Unix program missing
 #13: E: Cannot access TRANSCODE_BD
 #14: E: Cannot access API
+#15: E: Cannot delete old jobs
