@@ -3,9 +3,8 @@
 #
 #  $1 = The recording ID from Channels DVR API
 #  Additional arguments in the form VARIABLE="string" or VARIABLE=value
-#  
-# Transcode from Channels DVR via API
-# This code requires an external functions (showname_clean) plus many variables to be set externally:
+# 
+# If you wish to deliver to Plex, DEST_DIR should be set and showname_clean function made available
 #
 # Location in which to create Plex-suitable file structure: DEST_DIR
 # Locations of binary files: HANDBRAKE_CLI MP4BOX_CLI JQ_CLI FFMPEG_CLI CURL_CLI AP_CLI
@@ -18,7 +17,7 @@
 # COMTRIM=1 over-rides this to trim out commercials (dangerous)
 # See instructions for HandBrake tuning (PRESET, EXTRAS, SPEED, MAXSIZE)
 # AP_CLI=1 or e.g. AP_CLI="/usr/bin/AtomicParlsey" enables iTunes style tagging
-  
+ 
 # Reads variables of A=VALUE format
 if [ $# -gt 0 ] ; then
   for var in "$@"; do
@@ -151,7 +150,7 @@ comskipped="$(jq -r 'select (( .Commercials[0] )) | {ID} | join (" ")' < tmp.jso
 # Commercial trimming (optional)
 if [ "${COMTRIM}" -eq 1 ] && [ "${comskipped}" ]; then
   # Perform the actual file splitting
-  curl -s "http://192.168.2.2:8089/dvr/files/${1}/comskip.ffsplit" > "${1}.ffsplit"; ffsplit="${1}.ffsplit"
+  curl -s "${CHANNELS_DB}/${1}/comskip.ffsplit" > "${1}.ffsplit"; ffsplit="${1}.ffsplit"
   
   if [ -f "${ffsplit}" ]; then
     [ "$VERBOSE" -ne 0 ] && echo "Attempting to trim input file"
@@ -186,7 +185,7 @@ rm -f "${fname}" # Delete tmp input file/link
 # COMMERCIAL MARKING
 # Instead of trimming commercials, simply mark breaks as chapters
 if [ "${CHAPTERS}" -eq 1 ] && [ "${comskipped}" ] ; then
-  curl -s "http://192.168.2.2:8089/dvr/files/${1}/comskip.vdr" > "${1}.vdr"; vdr="${1}.vdr"  
+  curl -s "${CHANNELS_DB}/${1}/comskip.vdr" > "${1}.vdr"; vdr="${1}.vdr"  
   "${MP4BOX_CLI}" -lang "${LANG}" -chap "${vdr}" "${1}.m4v" || notify_me "${bname} chapter marking failed"
 fi
 
