@@ -99,7 +99,7 @@ iv) To read documentation on GNU parallel. This is not for beginners, and you wi
 
 Note that additional options (which can be edited in PARALLEL_OPTS) have been added to GNU parallel over the years, and at least one of those, specifically --memfree, I use. Please either update to a 2016+ version or, if you have problems, delete the "--memfree 700 M". (Note that my own tests have shown that the default settings {PRESET="Apple 1080p Surround", SPEED="veryfast", MAXSIZE=1080} have shown that 700 MBytes is about right if the source is 1080p, and 425 Mbytes if the source is 720p. These things are best to tune for yourself.)
 
-** Other scripts **
+**Other scripts**
 
 Over time I will be adding other scripts to this archive.
 
