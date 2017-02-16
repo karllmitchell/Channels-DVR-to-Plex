@@ -18,17 +18,17 @@
 DEST_DIR="/mnt/network/Plex"                 # Desination for video recordings.  Should contain "TV Shows" and "Movies" subdirectories, or symlinks to them.
 SOURCE_DIR=""                                # Channels DVR folder (see Channels web interface settings) if NFS/SMB/AFP mounted.  Leave blank if running locally.  
 HOST=""                                      # Default="localhost:8089".  To run this remotely, add e.g. HOST="channels-dvr.local". If no port, 8089 assumed.
-SOURCE_PREFS=""                              # If left blank, will scan a default list of locations; CANNOT BE SET AS COMMAND LINE OVER-RIDE!
+SOURCE_PREFS=""                              # If left blank, will scan a default list of locations; CANNOT BE SET AS COMMAND LINE OVER-RIDE! OBSOLETE.
 BACKUP_DIR=""                                # Location to deposit files if server offline.  Leave empty if not needed.
 WORKING_DIR=""                               # Default="/tmp".  Useful if local space is limited, as can require many GB.
 TMP_PREFIX=""                                # Default="transcode".  Prefix of temporary working directories within WORKING_DIR.  Name must not contain spaces.
 
 # Options to tailor how the software runs:
-SOURCE_TYPE="ts|mkv|mpg"                     # File extensions recorded by Channels, could be "mpg" or "ts|mpg|mpeg".  Avoid "m4v" if delivering to same directory.
-SOURCE_FILE=""                               # If filled, specifies a particular filename and only searches for that file.  Usually only a command line option.
+SOURCE_TYPE="ts|mkv|mpg"                     # OBSOLETE. Former way of specifying valid file extensions. Avoid "m4v" if delivering to same directory.
+SOURCE_FILE=""                               # OBSOLETE.  Specifies a particular filename and only searches for that file.  Usually only a command line option.
 CHAPTERS=1                                   # Set to 1 to mark commercials as chapters.  Doesn't work if COMTRIM enabled.
 COMTRIM=0                                    # Set to 1 to trim commercials from output file.  Takes priority over comskip.  Use at own risk.
-DELETE_ORIG=0                                # Set to 1 to delete original files and 0 to disable.  CURRENTLY DOES NOT WORK.
+DELETE_ORIG=0                                # OBSOLETE.  Set to 1 to delete original files and 0 to disable.  Should set expiry within Channels DVR.
 OVERWRITE=0                                  # Set to 1 to overwrite existing versions of show, rather than skip transcode.
 TEMP_COPY=0                                  # Copies input file to the working directory first; useful when running over erratic networks.
 LANG="en-US"                                 # Force MP4 file tracks to have a language; Necessary for AppleTV 4 to see chapters.			
@@ -88,7 +88,6 @@ TVDB_API=""                                  # Optional.  For assisting in file 
 #      "Apple 1080p30 Surround", veryfast, 720p input:  425M
 #      "Apple 1080p30 Surround", veryfast, 1080i input, MAXSIZE=720:  550M
 # T.B.D. etherwake to allow Wake-on-LAN functionality
-# T.B.D. send files over GNU parallel (for erratic networks)
 PARALLEL_CLI=""                              # Location of GNU parallel binary.  Note that with -j 1 this will run like a normal non-parallel task.  
 PARALLEL_OPTS=(-j 1 --nice $NICE --memfree 700M --noswap) 
 
