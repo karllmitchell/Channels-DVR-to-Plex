@@ -34,7 +34,8 @@ TEMP_COPY=0                                  # Copies input file to the working 
 LANG="en-US"                                 # Force MP4 file tracks to have a language; Necessary for AppleTV 4 to see chapters.			
 NICE=10                                      # For intensive tasks, set a "niceness" between 0 and 19, so as not to lock up the machine.
 VERBOSE=1                                    # 0 = quiet; 1 = normal; 2 = detailed.
-BUSY_WAIT=1                                  # Waits up to 4 hours for Channels to stop recording or comskipping if set.
+BUSY_WAIT=1                                  # Waits up to TIMEOUT duration for Channels to stop recording or comskipping if set.
+TIMEOUT=""                                   # Max time, in seconds, to wait while Channels is busy before giving up.  Only used if BUSY_WAIT=1.  Default=14400.
 DEBUG=0                                      # For development.  More explicit output.  Doesn't remove TMPDIR at the end.
 
 # NEW FEATURE: A database is now kept of all converted files
