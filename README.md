@@ -4,9 +4,11 @@ Channels DVR (https://community.getchannels.com/dvr/) is an extremely user frien
 
 Please note that this has not been thoroughly tested on all systems, and that it is to be used at your own risk. It has so far been tested on (at least) Ubuntu 16.04 Xenial (arm64) and Mac OS Sierra 10.12 (intel x86-64).  This is sub-beta quality right now!  Feel free to take it and make it your own, or contribute to this archive, as long as you share your work and operate within the license.
 
+Ideally this should be installed using the *install.sh* script.
+
 **The main script**
 
-*transcode-plex.sh* requires bash, and is designed primarily to run as a nightly job, preferably after all commercial scanning is over (12:01 AM by default), although it can be run from the command line too.  It can be installed either on the same machine as runs Channels DVR, or on another machine as long as you set the HOST variable; Note that it will copy files across the network in this latter mode.  The advantage of this is that you can run a very low powered machine (ARM board or NAS) for the recording, and then use another higher-powered machine for the transcoding, potentially letting it sleep most of the time. I recommend placing transcode-plex.sh in /usr/local/bin.
+*channels-transcoder.sh* requires bash, and is designed primarily to run as a nightly job, preferably after all commercial scanning is over (12:01 AM by default), although it can be run from the command line too.  It can be installed either on the same machine as runs Channels DVR, or on another machine as long as you set the HOST variable; Note that it will copy files across the network in this latter mode.  The advantage of this is that you can run a very low powered machine (ARM board or NAS) for the recording, and then use another higher-powered machine for the transcoding, potentially letting it sleep most of the time. By default it lives in /usr/local/bin.
 
 At the core of the script is HandBrakeCLI, which performs the transcoding via libx264. This is easy to obtain (http://handbrake.fr/ or via apt-get, macports, etc.) and by default I have it set up to produce high quality full resolution outputs that look good on a full HDTV with Apple TV, which also runs on most devices that are capable of 1080p playback.  Both subtitles and sound are preserved from the original MPEG, and if surround sound exists then a stereo track is added for more universal compatibility. 
 
@@ -14,19 +16,19 @@ Although the code will run on extremely underpowered systems, including low cost
 
 **Set up and first run**
 
-The script can be run as a user (preferred) or root, but make sure that you can write to the destination directory and read from the source directory (if held locally).  It accepts various settings from a mandatory preferences file, which can also be overridden on the command line (see below).  When run for the first time, make sure to rename the transcode.prefs file to prefs (see below) and place it in ~/.transcode-plex/.  It can also be stored in /var/lib/transcode-plex/, ~/Library/Application Support/transcode-plex/ or /Library/Application Support/transcode-plex/ if that works better for you.  *As a bare minimum you should edit the first line of the prefs file (DEST_DIR) and point it at your Plex recordings directory*.  There are instructions in the prefs file next to each option that can be set (see section below on "Preferences file").
+The script can be run as a user (preferred) or root, but make sure that you can write to the destination directory and read from the source directory (if held locally).  It accepts various settings from a mandatory preferences file, which can also be overridden on the command line (see below).  If the installation script is not used, make sure to rename the channels-transcoder.prefs file to prefs (see below) and place it in ~/.transcode-plex/ or  ~/Library/Application Support/channels-transcoder/ (Mac default).  Unless you use the install script, you should edit the first line of the prefs file (DEST_DIR) and make sure that Plex is set up to that it points at "$DEST_DIR/Movies" and "$DEST_DIR/TV Shows".  There are instructions in the prefs file next to each option that can be set (see section below on "Preferences file").
 
-On this first run it will also initialise a database which lists previously transcoded recordings, but note that it will by default not transcode any previously recorded shows unless you follow the instructions below.  By default, it will act this time as if you ran with these options:
+On this first run (or install script) it will also initialise a database which lists previously transcoded recordings, but note that it will by default not transcode any previously recorded shows unless you respond to the DAYS prompt when asked (install script) or you run from the command-line with these options:
 
-transcode-plex.pl CLEAR_DB=1 DAYS=0
+channels-transcoder.pl CLEAR_DB=1 DAYS=N
 
-This will reset the database and mark all previously recorded shows (before 0 days ago) as having already been transcoded.  If you wish to transcode a backlog of recordings, run from the command-line as above but set the DAYS=N option differently, e.g. DAYS=7 will transcode the last 7 days of shows for you.  This may take a long time, depending on your system and how much stuff you have.  DO NOT run transcode-plex.sh again until this is complete.
+where N is the number of days backlog you want clearing.  This will reset the database and mark all previously recorded shows (before N days ago) as having already been transcoded.  This may take a long time, depending on your system and how much stuff you have.  DO NOT run transcode-plex.sh again until this is complete.  The install script will handle most of this for you.
 
 **Preferences file**
 
-The preferences file mentioned previous has a lot of settings.  This might seem intimidating, but most are not needed for regular users, and all are commented extensively within the file.  The only critical one for MOST users is the DEST_DIR one, which points at somewhere Plex can see.  It is assumed that "TV Shows" and "Movies" are subdirectories in that file.  Once set up, you should easily be able to add these folders to Plex.  If you prefer to integrate with existing Plex folders, and your "TV Shows" and "Movies" folders are named or configured in that way, you can work around it using symbolic links.
+The preferences file mentioned previous has a lot of settings.  This might seem intimidating, but most are not needed for regular users, and all are commented extensively within the file.  The only critical one for MOST users is the DEST_DIR one, which points at somewhere Plex can see.  The install script will prompt you for it.  It is assumed that "TV Shows" and "Movies" are subdirectories in that file.  Once set up, you should easily be able to add these folders to Plex.  If you prefer to integrate with existing Plex folders, and your "TV Shows" and "Movies" folders are named or configured in that way, you can work around it using symbolic links.
 
-Some interesting options are CHAPTERS=1, which uses Channels DVR commercial markers as chapter markers in the output file, and COMTRIM=1, which actually completely removes the commercial breaks.  I recommend not using this latter mode unless you are very confident in the commercial detection, which in my experience produces quite a few blunders unless you have tuned your comskip.ini file extremely carefully. Note that if both are set, COMTRIM will "win".
+Some interesting options are CHAPTERS=1 (selected by default), which uses Channels DVR commercial markers as chapter markers in the output file, and COMTRIM=1, which actually completely removes the commercial breaks.  I do not recommend  using this latter mode unless you are very confident in the commercial detection, which in my experience produces quite a few blunders unless you have tuned your comskip.ini file extremely carefully. Note that if both are set, COMTRIM will "win".
 
 By default, PRESET="AppleTV 3".  This is suitable for most modern devices, but if it doesn't work for you just change it, or over-ride from the command line (see below). Note that this is technically an obsolete preset, which is used for backward compatibility with versions of HandBrakeCLI that are still often distributed with Linux systems.  The same settings can also be had using the more up-to-date "Apple 1080p30 Surround" preset.  If you really care about preserving 60 Hz source data, you could try "Apple 1080p60 Surround" on recent (>=1.0) versions of HandBrakeCLI, but you might be liminting what devices can play it back (Apple TV 4, iPhone 6/7, iPad Pro will work). If your devices struggle with those suggestions, "AppleTV 2" or (for more recent versions of HandBrake) "Apple 720p30 Surround" will be better, but you will not get 1080 resolutions.  Note that file sizes might end up on average slightly larger for the same resolutions with these less capable presets, as they restrict what compression tricks can be used.
 
@@ -40,41 +42,44 @@ Finally, some "bonus" feature described below utilize IFTTT for phone notificati
 
 All of the default options within the script can be substituted for on the command line. In its most basic mode, simply run:
 
-transcode-plex.sh
+channels-transcoder.sh
 
 from the command line and it will scan the source directory (the "TV" folder where Channels DVR stores its recordings).
 
 If you would like to overload any of the options above, simply add them as arguments, e.g.
 
-transcode-plex.sh DAYS=1 MAXSIZE=540 COMTRIM=1
+channels-transcoder.sh DAYS=1 MAXSIZE=540 COMTRIM=1
 
 will only search for files created in the last 6 hours (360 minutes) and will create smaller 540p files with commercials trimmed. Note that it will not transcode previously finished shows until you re=initate your database (CLEAR_DB=1). Also, it should be noted that the arguments are case-sensitive.
 
-An additional option for command line execution only is to specify the show you want to convert using the SOURCE_FILE option, which can either specify the full file name, with or without path, or simply a part of that file name. It will also work if the full file path is given too, for compatibility with folder watching scripts. So both of these should work:
+An additional option for command line execution only is to specify specific recordings on the command line.  This is done without the VAR="parameter" format, and can use either a part of the filename, or the specific Channels DVR recording ID, e.g.:
 
-convert-plex.sh SOURCE_FILE="2017-01-14-2059 Sherlock on Masterpiece 2017-01-08 S04E02 The Lying Detective.mpg"
-convert-plex.sh SOURCE_FILE="Sherlock"
+channels-transcoder.sh 11 12 14
+channels-transcoder.sh "Sherlock"
 
-One again, if it's in your database it will not run it, but if necessary you can simply remove entries from transcode.db (.  To force an old version, run twice:
+The OVERWRITE=1 option forces it to copy over previous versions.  Note that the former of these is explicit, whereas the latter is a search expression on the filename, and so in this instance it would find ALL shows containing the search term Sherlock.  You can be as explicit as you like with the search expression, and so the entire filename can be given to avoid ambiguity.  However, if you choose to search by directories, note that these are relative to the root of the Channels DVR database, so "Sherlock/Season 1" would work, but "DVR/TV Shows/Sherlock/Season 1" would not.  Finally, it should be noted that in both of these instances it will not check if previously transcoded in the database. 
 
-convert-plex.sh CLEAR_DB=1 DAYS=10000 SOURCE_FILE="Sherlock"
-convert-plex.sh CLEAR_DB=1 DAYS=0
+The script also checks to see if the file already exists under DEST_DIR, and will not bother transcoding if it does.  If you wish to overwrite past transcoded versions, you can do so by specifying OVERWRITE=1, either before or after the list of specific recordings.
 
-will convert all shows with "Sherlock" in the title recorded in the past 10000 days, and then will reinitiatlise the database, marking all shows present in Channels DVR as having previously been transcoded.
+If the transcode database has issues, you can always reset the transcode database using e.g. channels-transcoder.pl CLEAR_DB=1 DAYS=N.
+
 
 **Daemon/cron management**
 
-For most Linux users it's probably easiest to run this as a cron job. Something like:
+This should be set up for users that run the install script.
 
-1 0 * * * /usr/local/bin/transcode-plex.sh > ~/convert-plex.log
+For most Linux users it's probably easiest to run this as a cron job, e.g. the default:
 
-This would running at 12:01am every night (by default the script will also wait internally for up to 4 hours for Channels DVR to stop recording/comskipping before starting).  For Mac users, I've included a LaunchAgent file in this archive (com.getchannels.transcode-plex.plist), typically placed into the /Library/LaunchAgents directory. Once it's there, run the following:
+1 0 * * * /usr/local/bin/channels-transcoder.sh > ~/.channels-transcoder/log
 
-sudo launchctl load /Library/LaunchAgents/com.getchannels.transcode-plex.plist
+This would running at 12:01am every night (by default the script will also wait internally for up to 4 hours for Channels DVR to stop recording/comskipping before starting).
 
-sudo launchctl start com.getchannels.transcode-plex
+For Mac users, I've included a LaunchAgent file in this archive (com.getchannels.channels-transcoder.plist), typically placed into the ~/Library/LaunchAgents directory. Once it's there, run the following:
 
-The log files (transcode-plex.log and transcode-plex.err) are in /var/log, and so can be monitored easily (e.g. tail -f transcode-plex.log).
+sudo launchctl load /Library/LaunchAgents/com.getchannels.channels-transcoder.plist
+sudo launchctl start com.getchannels.channels-transcoder
+
+The log file is also in the prefs director, and so can be monitored easily (e.g. tail -f ~/.channels-transcoder/log).
 
 I'm working on more daemon and file monitoring approaches, and would appreciate additions from others.
 
@@ -97,10 +102,8 @@ ii) Both the WORKING_DIR and the DEST_DIR must be visible in the same location o
 iii) Passwordless logins set up with ssh-keygen for remote ssh sessions on target machines.
 iv) To read documentation on GNU parallel. This is not for beginners, and you will need to set up your system correctly to be able to use it.
 
-Note that additional options (which can be edited in PARALLEL_OPTS) have been added to GNU parallel over the years, and at least one of those, specifically --memfree, I use. Please either update to a 2016+ version or, if you have problems, delete the "--memfree 700 M". (Note that my own tests have shown that the default settings {PRESET="Apple 1080p Surround", SPEED="veryfast", MAXSIZE=1080} have shown that 700 MBytes is about right if the source is 1080p, and 425 Mbytes if the source is 720p. These things are best to tune for yourself.)
+Note that additional options (which can be edited in PARALLEL_OPTS) have been added to GNU parallel over the years, and at least one of those, specifically --memfree, I use. Please either update to a 2016+ version or, if you have problems, delete the "--memfree 700 M". (Note that my own tests have shown that the default settings {PRESET="AppleTV 3", SPEED="veryfast", MAXSIZE=1080} have shown that 700 MBytes is about right if the source is 1080p, and 425 Mbytes if the source is 720p. These things are best to tune for yourself.)
 
 **Other scripts**
 
 Over time I will be adding other scripts to this archive.
-
-The first is *channels-transcode.sh*, which is a cut-down version of the transcode-plex.sh script which transcodes a single Channels DVR recording by number typically directly into the current directory, adds chapters based on comskip results (by default), options tags for iTunes (if AP_CLI set) or trims commercials (if COMTRIM=1), and optionally places into a Plex-like directory structure (if DEST_DIR is set).  This may be useful for those who would like to use the transcoding and API inspection capability in a different manner than already implemented, e.g. independent of Plex, independent of the TRANSCODE_DB, etc.  It does not clean up after itself, so you may wish to run it in a temporary directory.  It can be run locally to the Channels DVR server or remotely (using the e.g. HOST="distant.server:8089" option).  Many other options can be set using command line arguments as per the transcode-plex.sh script.
