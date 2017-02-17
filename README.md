@@ -24,9 +24,17 @@ The script must be run as a user with superuser access.  Do make sure that you c
 
 On this first run (or install script) it will also initialise a database which lists previously transcoded recordings, but note that it will by default not transcode any previously recorded shows unless you respond to the DAYS prompt when asked (install script) or you run from the command-line with these options:
 
-channels-transcoder.sh CLEAR_DB=1 DAYS=N
+channels-transcoder.sh CLEAR_DB=1 DAYS=<N>
 
-where N is the number of days backlog you want clearing.  This will reset the database and mark all previously recorded shows (before N days ago) as having already been transcoded.  This may take a long time, depending on your system and how much stuff you have.  DO NOT run transcode-plex.sh again until this is complete.  The install script will handle most of this for you.
+where <N> is the number of days backlog you want clearing (so e.g. DAYS=7).  This will reset the database and mark all previously recorded shows (before N days ago) as having already been transcoded.  This may take a long time, depending on your system and how much stuff you have.  DO NOT run transcode-plex.sh again until this is complete.  The install script will handle most of this for you.
+
+**Subsequent runs**
+
+From now on, channels-transcoder.sh should work fine if run on a repeated cycle, e.g. every 24 hours.  If an existing instance of it running is found, or if Channels DVR is recording or comskipping, it will wait up to a user-defined amount of time (default=82800 seconds or 23 hours) before executing.  If more than one existing instance is found, channels-transcoder.sh will exit immediately. Note that HandBrakeCLI h.264 encoding is well optimized for multiple CPUs/threads, and so most of the time there is little benefit to running it multiple times.
+
+Setting BUSY_WAIT=0 will prevent waiting for Channels DVR or channels-transcoder activity to cease, although it will still quit if 2+ instances of channels-transcoder are found.  
+
+If you want something specific transcoded ASAP, and have no concerns about resources, you can override this behaviour with BUSY_WAIT=0, typically in conjunction with DAYS=0. 
 
 **Preferences file**
 
