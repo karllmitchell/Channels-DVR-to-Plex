@@ -4,7 +4,11 @@ Channels DVR (https://community.getchannels.com/dvr/) is an extremely user frien
 
 Please note that this has not been thoroughly tested on all systems, and that it is to be used at your own risk. It has so far been tested on (at least) Ubuntu 16.04 Xenial (arm64) and Mac OS Sierra 10.12 (intel x86-64).  This is sub-beta quality right now!  Feel free to take it and make it your own, or contribute to this archive, as long as you share your work and operate within the license.
 
-Ideally this should be installed using the *install.sh* script.
+Ideally this should be installed using the *install.sh* script, thus:
+
+curl -f -s https://raw.githubusercontent.com/karllmitchell/Channels-DVR-to-Plex/master/install.sh | bash
+
+Note that this can also be used to update existing configurations.  However, if the script asks for a destination directory then your installation is probably sufficiently old or non-standard that you should do it manually if you want to preserve your settings.  Also, if you are a new user, consider the question about number of days backlog to transcode carefully, as this can take a long time. DAYS=0 is pretty safe, and you can always transcode missed shows later from the command line.
 
 **The main script**
 
