@@ -24,9 +24,9 @@ The script must be run as a user with superuser access.  Do make sure that you c
 
 On this first run (or install script) it will also initialise a database which lists previously transcoded recordings, but note that it will by default not transcode any previously recorded shows unless you respond to the DAYS prompt when asked (install script) or you run from the command-line with these options:
 
-channels-transcoder.sh CLEAR_DB=1 DAYS=<N>
+channels-transcoder.sh CLEAR_DB=1 DAYS=N
 
-where <N> is the number of days backlog you want clearing (so e.g. DAYS=7).  This will reset the database and mark all previously recorded shows (before N days ago) as having already been transcoded.  This may take a long time, depending on your system and how much stuff you have.  DO NOT run transcode-plex.sh again until this is complete.  The install script will handle most of this for you.
+where N is the number of days backlog you want clearing (so e.g. DAYS=7).  This will reset the database and mark all previously recorded shows (before N days ago) as having already been transcoded.  This may take a long time, depending on your system and how much stuff you have.  DO NOT run transcode-plex.sh again until this is complete.  The install script will handle most of this for you.
 
 **Subsequent runs**
 
@@ -69,11 +69,11 @@ An additional option for command line execution only is to specify specific reco
 channels-transcoder.sh 11 12 14
 channels-transcoder.sh "Sherlock"
 
-The OVERWRITE=1 option forces it to copy over previous versions.  Note that the former of these is explicit, whereas the latter is a search expression on the filename, and so in this instance it would find ALL shows containing the search term Sherlock.  You can be as explicit as you like with the search expression, and so the entire filename can be given to avoid ambiguity.  However, if you choose to search by directories, note that these are relative to the root of the Channels DVR database, so "Sherlock/Season 1" would work, but "DVR/TV Shows/Sherlock/Season 1" would not.  Finally, it should be noted that in both of these instances it will not check if previously transcoded in the database. 
+The OVERWRITE=1 option forces it to copy over previous versions, which by default it will not do.  The numerical version is explicit, whereas the latter is a search expression on the filename, and so in this instance it would find ALL shows containing the search term Sherlock.  You can be as specific as you like with the search expression, and so the entire filename can be given to avoid ambiguity.  However, if you choose to search by directories, note that these are relative to the root of the Channels DVR database, so "Sherlock/Season 1" would work, but "DVR/TV Shows/Sherlock/Season 1" would not.  Finally, it should be noted that in both of these instances it will not check if previously transcoded in the database.
 
-The script also checks to see if the file already exists under DEST_DIR, and will not bother transcoding if it does.  If you wish to overwrite past transcoded versions, you can do so by specifying OVERWRITE=1, either before or after the list of specific recordings.
+Given that there are limits to the number of instances (2) of channels-transcoder.sh that will run, there are circumstances under which running this manually may prevent automatic execution.
 
-If the transcode database has issues, you can always reset the transcode database using e.g. channels-transcoder.pl CLEAR_DB=1 DAYS=N.
+If, for whatever reason, you wish to reset your transcode database, you can always do so as per initial setup instructions, e.g. channels-transcoder.pl CLEAR_DB=1 DAYS=N.
 
 
 **Daemon/cron management**
