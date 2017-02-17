@@ -226,18 +226,6 @@ if [ ! -w "${TRANSCODE_DB}" ] ; then
   exit 13
 fi
 
-# Search through temporary directory to find and clean up any stalled jobs
-[ ! "$TMP_PREFIX" ] && TMP_PREFIX="transcode" 
-for i in ${WORKING_DIR/ /\ }/${TMP_PREFIX}.*/progress.txt; do
-  if [ -f "${i}" ] ; then
-    notify_me "Found incomplete jobs in ${i}. Cleaning."  
-    grep transcode < "${i}" | awk '$7 == 0 {print $10}' >> "${TRANSCODE_DB}"
-    grep transcode < "${i}" | awk '$7 == 1 {print $10}' >> "${TRANSCODE_DB}"
-    
-    rm -rf "$(dirname "${i}")" || notify_me "Cannot delete ${i}. Please do so manually."
-  fi
-done
-
 function transcode {
   # Re-check required programs in case of remote execution
   if [ "${PARALLEL}" ] ; then
@@ -447,18 +435,46 @@ function transcode {
   return 0
 }
 
-## WAIT UNTIL CHANNELS DVR IS QUIET
-# Wait until the system is done with recording and commercial skipping
-busy=$(curl -s "${CHANNELS_DB}/../../dvr" | jq '.busy')
-if [ ! "${BUSY_WAIT}" -eq 0 ] && [ "${busy}" == true ] ; then
-  [ "${TIMEOUT}" ] || TIMEOUT=14400
-  notify_me "Waiting (max 4 hours) until Channels is no longer busy.  Set BUSY_WAIT=0 to prevent."
-  while [ ${SECONDS} -lt ${TIMEOUT} ] || [ "${busy}" == true ] ; do
-    wait 60
-    busy=$(curl -s "${CHANNELS_DB}/../../dvr" | jq '.busy')
+## WAIT UNTIL SYSTEM IS NOT BUSY
+# If BUSY_WAIT=1, wait until the system is done with recording, commercial skipping and transcoding
+
+# Wait until the system is done with recording, commercial skipping and transcoding
+[ "${BUSY_WAIT}" ] || BUSY_WAIT=1  # Set Default behaviour
+transcode_jobs="$(pgrep -fc "channels-transcoder.sh" | grep -vw $$)"       # Check for other transcoding jobs
+channels_busy="$(curl -s "${CHANNELS_DB}/../../dvr" | jq '.busy')"         # Check to see if Channels DVR is busy
+
+# Loop until no transcoding jobs, channels is no longer busy, or timeout.  Default is about a day.
+if [ "${BUSY_WAIT}" -eq 1 ] && ( [ "${channels_busy}" == true ] || [ "${transcode_jobs}" -ge 1 ] ) ; then  
+  [ "${TIMEOUT}" ] || TIMEOUT=82800
+  delay="${TIMEOUT} seconds" ; [ "${TIMEOUT}" -ge 60 ] && delay="$((TIMEOUT/60)) minutes" ; [ "${TIMEOUT}" -ge 3600 ] && delay="$((TIMEOUT/3600)) hours"
+  TIMER=0
+  
+  [ "${transcode_jobs}" -gt 1 ] && ( notify_me "Too many instances of channels-transcode.sh running. Preventing execution." ; exit 10 )
+  echo "Waiting ~${delay} until Channels is no longer busy and no transcode jobs exist.  Set BUSY_WAIT=0 to prevent."  
+
+  # Loop until Channels DVR isn't busy and there are no other active transcode jobs.  
+  while [ "${channels_busy}" == true ] || [ "${transcode_jobs}" -ge 1 ]; do
+    [ "${TIMER}" -gt "${TIMEOUT}" ] && (notify_me "Instance of channels-transcoder.sh timed out at ${delay}." ; exit 11 )
+    sleep 60; TIMER+=60
+    channels_busy="$(curl -s "${CHANNELS_DB}/../../dvr" | jq '.busy')"     # Check if Channels DVR is busy
+    transcode_jobs="$(pgrep -fc "channels-transcoder.sh" | grep -vw $$)"   # Check for other transcoding jobs
   done
+  
 fi
 
+# Search through temporary directory to find and clean up any stalled jobs
+[ ! "$TMP_PREFIX" ] && TMP_PREFIX="transcode" 
+for i in ${WORKING_DIR/ /\ }/${TMP_PREFIX}.*/progress.txt; do
+  if [ -f "${i}" ] ; then
+    notify_me "Found completed jobs in ${i}. Cleaning."  
+    grep transcode < "${i}" | awk '$7 == 0 {print $10}' >> "${TRANSCODE_DB}"
+    grep transcode < "${i}" | awk '$7 == 1 {print $10}' >> "${TRANSCODE_DB}"
+    [ "$(pgrep -fc "channels-transcoder.sh" | grep -vw $$)" -ne 0 ] || rm -rf "$(dirname "${i}")" || notify_me "Cannot delete ${i}. Please do so manually."
+  fi
+done
+
+# Clean up transcode database
+uniq < "${TRANSCODE_DB}" | sort -n > tmp.db && ( mv -f tmp.db transcode.db || (notify_me "Could not update transcode.db"; exit 13) )
 
 ## SEARCH API FOR RECORDINGS IN THE LAST $DAYS NUMBER OF DAYS THAT ARE NOT IN THE TRANSCODE DB.
 # If none can be accessed, quit, otherwise report on how many shows to do.
@@ -468,6 +484,7 @@ jlist="${TMPDIR}/recordings.json"
 
 # Add explicitly named files
 if [ "${filelist}" ] || [ "${SOURCE_FILE}" ] ; then
+  [ "${DAYS}" ] || DAYS=0
   [ "${SOURCE_FILE}" ] && [ "${SOURCE_FILE}" == "$(realpath "${SOURCE_FILE}")" ] && SOURCE_FILE="$(basename "${SOURCE_FILE}")"
   for i in ${filelist} ${SOURCE_FILE}; do
     [ "${i}" == "$(realpath "${i}")" ] && i="$(basename "${i}")"
@@ -476,9 +493,11 @@ if [ "${filelist}" ] || [ "${SOURCE_FILE}" ] ; then
 fi
 
 # Add explicitly numbered files
-if [ "${apilist}" ] ; then for i in ${apilist}; do
-  "${JQ_CLI}" -r '.[] | select (.Path | select(.ID == "'"$i"'") | select (.Deleted == false) | select (.Processed == true) | {ID} | join(" ")' < "${jlist}" >> tmp.list
-done
+if [ "${apilist}" ] ; then
+  for i in ${apilist}; do
+    [ "${DAYS}" ] || DAYS=0
+    "${JQ_CLI}" -r '.[] | select (.Path | select(.ID == "'"$i"'") | select (.Deleted == false) | select (.Processed == true) | {ID} | join(" ")' < "${jlist}" >> tmp.list
+  done
 fi
 
 # Add list of new shows that have not previously been processed
@@ -516,20 +535,22 @@ if [ "$PARALLEL_CLI" ]; then
   "${PARALLEL_CLI}" --env _ "${PARALLEL_OPTS[@]}" -a "${rlist}" transcode {} 
   while read -r i; do
     exitcode="$(grep "${TSNAME} ${i}" < progress.txt | awk '{print $7}')"
-    if [ "${exitcode}" -ne 0 ] && [ "${exitcode}" -ne 1 ]; then
-      flist+="${i} "
-    else
-      echo "${i}" >> "${TRANSCODE_DB}"
-    fi
+    case $exitcode in
+      0) echo "${i}" >> "${TRANSCODE_DB}" ;;
+      1) echo "${i}" >> "${TRANSCODE_DB}" ;;
+      3) echo "${i}" >> "${TRANSCODE_DB}"; flist+="${i} " ;;
+      *) flist+="${i}" ;;
+    esac
   done < "${rlist}"
 else 
   while read -r i ; do
     exitcode=$(transcode "${i}")
-    if [ "${exitcode}" -ne 0 ] && [ "${exitcode}" -ne 1 ]; then
-      flist+="${i} "
-    else
-      echo "${i}" >> "${TRANSCODE_DB}"
-    fi
+      case $exitcode in
+        0) echo "${i}" >> "${TRANSCODE_DB}" ;;
+        1) echo "${i}" >> "${TRANSCODE_DB}" ;;
+        3) echo "${i}" >> "${TRANSCODE_DB}"; flist+="${i} " ;;
+        *) flist+="${i}" ;;
+      esac
   done < "${rlist}"
 fi
 
@@ -554,6 +575,7 @@ exit 0
 #5: E/R: Cannot write to target directory
 #6: R: Transcoding failure
 #9: E: Unix program missing
+#10: E: Too many jobs for another instance.  Quitting.
 #13: E: Cannot access TRANSCODE_BD
 #14: E: Cannot access API
 #15: E: Cannot delete old jobs
