@@ -18,17 +18,17 @@ function initiate_db {
     echo "sudo launchctl load \"~/Library/LaunchAgents/${tplist}\"" >> "${2}/log"
   else
     # Update crontab
-    count="$(crontab -l | sed 's/transcode-plex/channels-transcoder/g' | grep -s "channels-transcoder" | wc -l)"
+    count="$(crontab -l | sed 's/transcode-plex/channels-transcoder/g' | grep -s "channels-transcoder.sh" | wc -l)"
     case $count in
       0)  crontab -l > mycron
-          echo "01 00 * * * nice /usr/local/bin/channels-transcoder.sh > \"${2}/log\" " >> mycron
+          echo "01 00 * * * nice /usr/local/bin/channels-transcoder.sh > \"${2}/log\"" >> mycron
           echo "Cronjob added, will run at 12:01 each night." >> "${2}/log"
 	  ;;
       1)  crontab -l | sed 's/transcode-plex/channels-transcoder/g' > mycron
-          echo "Using existing crontab" >> "${2}/log"
+          echo "Using/adapting existing crontab" >> "${2}/log"
           ;;
-      *)  crontab -l > mycron
-          echo "01 00 * * * nice /usr/local/bin/channels-transcoder.sh > \"${2}/log\" " >> mycron
+      *)  crontab -l | sed 's/transcode-plex/channels-transcoder/g' | grep -v "channels-trancoder" > mycron
+          echo "01 00 * * * nice /usr/local/bin/channels-transcoder.sh > \"${2}/log\"" >> mycron
           echo "Cronjob had multiple entriees.  Replaced with a single one that will run at 12:01 each night." >> "${2}/log"
     esac
     crontab mycron
