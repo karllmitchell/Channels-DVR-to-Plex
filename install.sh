@@ -52,6 +52,7 @@ fi
 [ -d "${HOME}/Library/Application Support/channels-transcoder" ] && prefsdir="${HOME}/Library/Application Support/channels-transcoder"
 
 # 
+echo "Preferences Directory: ${prefsdir}"
 mkdir -p "${prefsdir}"
 if [ ! -f "${prefsdir}/prefs" ] ; then 
   echo "The destination directory is for producing Plex-like file structures."
