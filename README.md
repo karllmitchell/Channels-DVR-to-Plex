@@ -103,14 +103,14 @@ You will need to set up an IFTTT account and the app installed on your phone. Th
 
 **Parallelization**
 
-I have been experimenting with GNU parallel, giving the ability to (i) farm your processes out to other computers, and (ii) wait for available resources before encoding. It looks to be working fairly well, and so I added it as a feature, which is by default turned off. However, IF you want to give it a go, be my guest; Simply add . For those of you that know what you're doing, you'll want to set your -S (server) options within the PARALLEL_OPTS setting.
+I have been experimenting with GNU parallel, giving the ability to (i) farm your processes out to other computers, and (ii) wait for available resources before encoding. It looks to be working fairly well, and so I added it as a feature, which is by default turned off. However, IF you want to give it a go, be my guest.  Simply add explicit reference to the PARALLEL_CLI entry under prefs, and set your -S (server) options within the PARALLEL_OPTS setting.  You might want to try running with BUSY_WAIT=0, but there are some (admittedly unlikely) circumstances under which multiple instances might end up transcoding the same file multiple times.
 
 I do not recommend parallelizing between cores on a single machine (i.e. setting -j to more than 1), because (i) Handbrake with x264 is very scalable between cores already, and so even though you might see a marginal potential gain, there are plenty of other bottlenecks that could reverse that gain, and (ii) You'll actually see your files later on average, because of non-sequential delivery.
 
 *Parallelisation Requirements:*
 
-i) A RECENT version of GNU parallel (some of the options I use aren't on older releases) installed both on this machine and any others you wish to send the commend to.
-ii) Both the WORKING_DIR and the DEST_DIR must be visible in the same location on your drive on your remote system. This will involve drive mounting using NFS, AFP or SMB. I do not recommend SMB due to erratic file access. I also do not recommend trying this unless you have very smooth Gigabit networking or better. I'll work on different ways to implement this in the future that might be more efficient.
+i) A RECENT version of GNU parallel installed both on this machine and any others you wish to send the commend to.
+ii) The DEST_DIR must be visible in the same location on your drive on your remote system. This will involve drive mounting using NFS, AFP or SMB. I do not recommend SMB due to erratic file access. I also do not recommend trying this unless you have very smooth Gigabit networking or better. I'll work on different ways to implement this in the future that might be more efficient.
 iii) Passwordless logins set up with ssh-keygen for remote ssh sessions on target machines.
 iv) To read documentation on GNU parallel. This is not for beginners, and you will need to set up your system correctly to be able to use it.
 
