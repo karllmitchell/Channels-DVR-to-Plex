@@ -2,6 +2,7 @@
 # Installer for Channels-DVR-to-Plex software
 # Should be safe for previous users, but check prefs folder after running, just in case
 # Run as ". install.sh" or "chmod 700 install.sh; ./install.sh"
+
 tplist="com.getchannels.channels-transcoder.plist"
 
 function initiate_db {
