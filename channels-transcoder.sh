@@ -435,8 +435,8 @@ function transcode {
   return 0
 }
 
-## WAIT UNTIL SYSTEM IS NOT BUSY
-# If BUSY_WAIT=1, wait until the system is done with recording, commercial skipping and transcoding
+## WAIT UNTIL SYSTEM IS NOT BUSY THEN CLEAN UP DEAD JOBS AND TRANSCODE DATABASE
+#
 
 # Wait until the system is done with recording, commercial skipping and transcoding
 [ "${BUSY_WAIT}" ] || BUSY_WAIT=1  # Set Default behaviour
@@ -477,7 +477,8 @@ done
 uniq < "${TRANSCODE_DB}" | sort -n > "tmp.db" 
 [ -f "tmp.db" ] && mv -f tmp.db "${TRANSCODE_DB}" || (notify_me "Could not update transcode.db"; exit 13)
 
-## SEARCH API FOR RECORDINGS IN THE LAST $DAYS NUMBER OF DAYS THAT ARE NOT IN THE TRANSCODE DB.
+
+## CREATE LIST OF SHOWS TO BE TRANSCODED.
 # If none can be accessed, quit, otherwise report on how many shows to do.
 rlist="${TMPDIR}/recordings.list"
 jlist="${TMPDIR}/recordings.json"
@@ -506,7 +507,7 @@ fi
   < "${jlist}" | grep -Fxv -f "${TRANSCODE_DB}" >> tmp.list
 
 # Clean up list to avoid duplication and set recording order
-uniq < tmp.list | sort > "${rlist}"
+uniq < tmp.list > "${rlist}"
 rm -f tmp.list
 
 # Report how many news shows have been found
@@ -517,6 +518,7 @@ if [ "$count" ]; then
 else
   notify_me "No new shows to transcode"; exit 0
 fi
+
 
 ## RUN THE MAIN LOOP TO ACTIVATE TRANSCODING JOBS
 # Optionally via GNU parallel
