@@ -474,7 +474,7 @@ for i in ${WORKING_DIR/ /\ }/${TMP_PREFIX}.*/progress.txt; do
 done
 
 # Clean up transcode database
-uniq < "${TRANSCODE_DB}" | sort -n > tmp.db && ( mv -f tmp.db transcode.db || (notify_me "Could not update transcode.db"; exit 13) )
+uniq < "${TRANSCODE_DB}" | sort -n > tmp.db && ( mv -f tmp.db "${TRANSCODE_DB}" || (notify_me "Could not update transcode.db"; exit 13) )
 
 ## SEARCH API FOR RECORDINGS IN THE LAST $DAYS NUMBER OF DAYS THAT ARE NOT IN THE TRANSCODE DB.
 # If none can be accessed, quit, otherwise report on how many shows to do.
