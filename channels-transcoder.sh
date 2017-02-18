@@ -419,7 +419,7 @@ function transcode {
   fi
 
   # Clean up some files
-  [ "${DEBUG}" -ne 1 ] && rm -f "${1}.json" "${1}_mi.json" "${1}.jpg" "${1}.vdr" "${1}.ffsplit" "${1}.mpg" "${1}.ts"
+  [ "${DEBUG}" -ne 1 ] && rm -f "${1}.json" "${1}_mi.json" "${1}.jpg" "${1}.vdr" "${1}.ffsplit" "${1}.mpg" "${1}.ts" "${1}-temp-*.m4v"
   
   # Determine if destination directory exists on local system, and create target folder if so.
   # If not, bail. (Alternative approach to return file over GNU parallel protocol T.B.D.)
