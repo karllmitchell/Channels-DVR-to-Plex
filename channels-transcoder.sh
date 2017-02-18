@@ -293,7 +293,7 @@ function transcode {
   # Check to see if file exists at destination ...
   if [ "${DEST_DIR}" ]; then 
     tdname="${DEST_DIR}/Movies/${showname}"
-    [ "${rectype}" == "TV Show" ] && tdname="${DEST_DIR}/TV Shows/${showname}/Season $((season))"
+    [ "${rectype}" == "TV Show" ] && tdname="${DEST_DIR}/TV Shows/${showname}/Season $((10$${season}))"
     if [ -f "${tdname}/${bname}.m4v" ]; then
       if [ "${OVERWRITE}" -ne 1 ]; then
         echo "${tdname}/${bname}.m4v already exists at destination.  OVERWRITE=1 to ignore."
