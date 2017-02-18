@@ -293,7 +293,7 @@ function transcode {
   # Check to see if file exists at destination ...
   if [ "${DEST_DIR}" ]; then 
     tdname="${DEST_DIR}/Movies/${showname}"
-    [ "${rectype}" == "TV Show" ] && tdname="${DEST_DIR}/TV Shows/${showname}/Season $((10$${season}))"
+    [ "${rectype}" == "TV Show" ] && tdname="${DEST_DIR}/TV Shows/${showname}/Season $((10#${season}))"
     if [ -f "${tdname}/${bname}.m4v" ]; then
       if [ "${OVERWRITE}" -ne 1 ]; then
         echo "${tdname}/${bname}.m4v already exists at destination.  OVERWRITE=1 to ignore."
@@ -423,15 +423,18 @@ function transcode {
   
   # Determine if destination directory exists on local system, and create target folder if so.
   # If not, bail. (Alternative approach to return file over GNU parallel protocol T.B.D.)
-  if [ "${DEST_DIR}" ] ; then
-    [ -d "${DEST_DIR}" ] && mkdir -p "${tdname}"
-    ( [ -d "${tdname}" ] && [ "$(mv -f "${1}.m4v" "${tdname}/${bname}.m4v")" ] ) || ( [ "${BACKUP_DIR}" ] && mv -f "${1}.m4v" "${BACKUP_DIR}/${bname}.m4v" )
-    [ -f "${tdname}/${bname}.m4v" ] || ( notify_me "${bname}.m4v delivery failed" ; return 5 )
+  
+  if [ "${DEST_DIR}" ] && [ -d "${DEST_DIR}" ] && $(mkdir -p "${tdname}") && $(mv -f "${1}.m4v" "${tdname}/${bname}.m4v"); then
+    notify_me "${bname}.m4v delivery succeeded."
+  else
+    msg="${bname}.m4v failed to write to ${tdname}/."
+    [ -d "${DEST_DIR}" ] || msg+=" Specific desination directory does not exist.")    
+    if [ "${BACKUP_DIR}" ]; then
+      $(mv -f "${1}.m4v" "${BACKUP_DIR}/${bname}.m4v") && msg+=" File sent to backup directory." || msg+=" File backup failed."
+    fi
+    notify_me "${msg}"
+    return 5
   fi
-  
-  [ ! "${DEST_DIR}" ] && [ "${BACKUP_DIR}" ] && [ -d "${BACKUP_DIR}" ] && \
-    ( mv -f "${1}.m4v" "${BACKUP_DIR}/${bname}.m4v" || ( notify_me "${bname}.m4v delivery failed" ; return 5 ))
-  
   return 0
 }
 
@@ -440,7 +443,7 @@ function transcode {
 
 # Wait until the system is done with recording, commercial skipping and transcoding
 [ "${BUSY_WAIT}" ] || BUSY_WAIT=1  # Set Default behaviour
-transcode_jobs="$(pgrep -fc "channels-transcoder.sh" | grep -vw $$)"       # Check for other transcoding jobs
+transcode_jobs="$(pgrep -fa "/bin/bash channels-transcoder.sh" | grep -vw $$ | grep bash | wc -l)"       # Check for other transcoding jobs
 channels_busy="$(curl -s "${CHANNELS_DB}/../../dvr" | jq '.busy')"         # Check to see if Channels DVR is busy
 
 # Loop until no transcoding jobs, channels is no longer busy, or timeout.  Default is about a day.
@@ -457,19 +460,24 @@ if [ "${BUSY_WAIT}" -eq 1 ] && ( [ "${channels_busy}" == true ] || [ "${transcod
     [ "${TIMER}" -gt "${TIMEOUT}" ] && (notify_me "Instance of channels-transcoder.sh timed out at ${delay}." ; exit 11 )
     sleep 60; TIMER+=60
     channels_busy="$(curl -s "${CHANNELS_DB}/../../dvr" | jq '.busy')"     # Check if Channels DVR is busy
-    transcode_jobs="$(pgrep -fc "channels-transcoder.sh" | grep -vw $$)"   # Check for other transcoding jobs
+    transcode_jobs="$(pgrep -fa "/bin/bash channels-transcoder.sh" | grep -vw $$ | grep bash | wc -l)"   # Check for other transcoding jobs
   done
   
 fi
 
-# Search through temporary directory to find and clean up any stalled jobs
+# Search through temporary directory to find and clean up any stalled jobs from GNU parallel
 [ ! "$TMP_PREFIX" ] && TMP_PREFIX="transcode" 
 for i in ${WORKING_DIR/ /\ }/${TMP_PREFIX}.*/progress.txt; do
+  delete_tmp=1
   if [ -f "${i}" ] ; then
-    notify_me "Found completed jobs in ${i}. Cleaning."  
-    grep transcode < "${i}" | awk '$7 == 0 {print $10}' >> "${TRANSCODE_DB}"
-    grep transcode < "${i}" | awk '$7 == 1 {print $10}' >> "${TRANSCODE_DB}"
-    [ "$(pgrep -fc "channels-transcoder.sh" | grep -vw $$)" -ne 0 ] || rm -rf "$(dirname "${i}")" || notify_me "Cannot delete ${i}. Please do so manually."
+    old_tmpdir="$(dirname "${i}")" 
+    n="$(grep transcode < "${i}" | awk '$7 == 0 || $7 == 1 || $7 == 3 {print $10}')"
+    for j in $n; do [ -f "${old_tmpdir}/${i}.m4v" ] && delete_tmp=0 || echo "${j}" >> "${TRANSCODE_DB}"; done
+    if [ ${delete_tmp} -eq 0 ]; then
+      notify_me "Transcoded files exist in ${old_tmpdir}. Please delete or move manually."
+    else 
+      rm -rf "${old_tmpdir}" && notify_me "Cleaned up ${old_tmpdir}" || notify_me "Couldn't delete ${old_tmpdir}"
+    fi 
   fi
 done
 
