@@ -424,13 +424,13 @@ function transcode {
   # Determine if destination directory exists on local system, and create target folder if so.
   # If not, bail. (Alternative approach to return file over GNU parallel protocol T.B.D.)
   
-  if [ "${DEST_DIR}" ] && [ -d "${DEST_DIR}" ] && $(mkdir -p "${tdname}") && $(mv -f "${1}.m4v" "${tdname}/${bname}.m4v"); then
+  if [ "${DEST_DIR}" ] && [ -d "${DEST_DIR}" ] && mkdir -p "${tdname}" && mv -f "${1}.m4v" "${tdname}/${bname}.m4v"; then
     notify_me "${bname}.m4v delivery succeeded."
   else
     msg="${bname}.m4v failed to write to ${tdname}/."
-    [ -d "${DEST_DIR}" ] || msg+=" Specific desination directory does not exist.")    
+    [ -d "${DEST_DIR}" ] || msg+=" Specific desination directory does not exist."   
     if [ "${BACKUP_DIR}" ]; then
-      $(mv -f "${1}.m4v" "${BACKUP_DIR}/${bname}.m4v") && msg+=" File sent to backup directory." || msg+=" File backup failed."
+      mv -f "${1}.m4v" "${BACKUP_DIR}/${bname}.m4v" && msg+=" File sent to backup directory." || msg+=" File backup failed."
     fi
     notify_me "${msg}"
     return 5
@@ -443,7 +443,7 @@ function transcode {
 
 # Wait until the system is done with recording, commercial skipping and transcoding
 [ "${BUSY_WAIT}" ] || BUSY_WAIT=1  # Set Default behaviour
-transcode_jobs="$(pgrep -fa "/bin/bash channels-transcoder.sh" | grep -vw $$ | grep bash | wc -l)"       # Check for other transcoding jobs
+transcode_jobs="$(pgrep -fa "/bin/bash channels-transcoder.sh" | grep -vw $$ | grep -c bash)"       # Check for other transcoding jobs
 channels_busy="$(curl -s "${CHANNELS_DB}/../../dvr" | jq '.busy')"         # Check to see if Channels DVR is busy
 
 # Loop until no transcoding jobs, channels is no longer busy, or timeout.  Default is about a day.
@@ -460,7 +460,7 @@ if [ "${BUSY_WAIT}" -eq 1 ] && ( [ "${channels_busy}" == true ] || [ "${transcod
     [ "${TIMER}" -gt "${TIMEOUT}" ] && (notify_me "Instance of channels-transcoder.sh timed out at ${delay}." ; exit 11 )
     sleep 60; TIMER+=60
     channels_busy="$(curl -s "${CHANNELS_DB}/../../dvr" | jq '.busy')"     # Check if Channels DVR is busy
-    transcode_jobs="$(pgrep -fa "/bin/bash channels-transcoder.sh" | grep -vw $$ | grep bash | wc -l)"   # Check for other transcoding jobs
+    transcode_jobs="$(pgrep -fa "/bin/bash channels-transcoder.sh" | grep -vw $$ | grep -c bash)"   # Check for other transcoding jobs
   done
   
 fi
