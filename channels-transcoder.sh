@@ -458,7 +458,7 @@ if [ "${BUSY_WAIT}" -eq 1 ] && ( [ "${channels_busy}" == true ] || [ "${transcod
   # Loop until Channels DVR isn't busy and there are no other active transcode jobs.  
   while [ "${channels_busy}" == true ] || [ "${transcode_jobs}" -ge 1 ]; do
     [ "${TIMER}" -gt "${TIMEOUT}" ] && (notify_me "Instance of channels-transcoder.sh timed out at ${delay}." ; exit 11 )
-    sleep 60; TIMER+=60
+    sleep 60; TIMER=$((TIMER+60))
     channels_busy="$(curl -s "${CHANNELS_DB}/../../dvr" | jq '.busy')"     # Check if Channels DVR is busy
     transcode_jobs="$(pgrep -fa "/bin/bash channels-transcoder.sh" | grep -vw $$ | grep -c bash)"   # Check for other transcoding jobs
   done
