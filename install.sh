@@ -67,12 +67,12 @@ if [ ! -f "${prefsdir}/prefs" ] ; then
   echo "The local destination directory is for producing Plex-like file structures."
   echo -n "Enter the desired destination directory, followed by [ENTER]: "
   read -r destination
-  sed "/DEST_DIR*/c\DEST_DIR=\"${destination}\"                               # Destination for video recordings" < transcode-plex.prefs > "${prefsdir}/prefs"
+  sed "/DEST_DIR*/c\DEST_DIR=\"${destination}\"                               # Destination for video recordings" < channels-transcoder.prefs > "${prefsdir}/prefs"
   echo "If you're running this script on a machine other than the one running Channels DVR, you should specify the host here."
   echo -n "Enter the hostname and port number (leave blank for default \"localhost:8089\"), followed by [ENTER]: "
   read -r host_name
   [ "${host_name}" ] || host_name="localhost:8089"
-  sed "/HOST*/c\HOST=\"${host_name}\"                                         # Default=\"localhost:8089\".  For running  script remotely." < transcode-plex.prefs > "${prefsdir}/prefs"
+  sed "/HOST*/c\HOST=\"${host_name}\"                                         # Default=\"localhost:8089\".  For running  script remotely." < channels-transcoder.prefs > "${prefsdir}/prefs"
 fi
 echo "Password will be required to install channels-transcoder: "
 sudo mv channels-transcoder.sh /usr/local/bin
