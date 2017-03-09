@@ -8,9 +8,8 @@
 #  Curl (for accessing web resources)
 #  jq (for processing JSON databases)
 # Optional pre-requisites:
-#  MP4Box (part of GPAC, use MacPorts or similar) for marking commercials start/end as chapters
 #  An IFTTT Maker Key for phone status notifications.
-#  FFMPEG (a part of channels DVR, but you'll need to point to it) for commercial trimming
+#  FFMPEG (a part of channels DVR, but you'll need to point to it) for commercial trimming/marking
 #  Caffeinate (a mac utility to prevent sleep)
 #  Parallel (GNU software for parallel processing; Can run jobs in parallel across cores, processors or even computers if set up correctly)
 #  AtomicParsley (software for writing iTunes tags) >= 0.9.6 [Removal of older versions recommended, or it'll try to use them and fail]
@@ -108,7 +107,7 @@ if [ $# -gt 0 ] ; then
       [ "$DEBUG" -eq 1 ] && echo "${variable}=${value}"
     else
       case $var in
-        ''|*[!0-9]*) apilist+="${var} " ;;
+        ''|*[0-9]*) apilist+="${var} " ;;
 	*.*) filelist+="${var} " ;;
 	*) echo "Cannot interpret argument: ${var}";;
       esac
@@ -169,8 +168,7 @@ function ver {
 # Additional command-line programs for transcode function, only checked if not using remote execution with GNU parallel
 if [ ! "${PARALLEL_CLI}" ]; then
   [ -f "${HANDBRAKE_CLI}" ] || HANDBRAKE_CLI="$(which HandBrakeCLI)" || (notify_me "HandBrakeCLI missing"; exit 9)
-  [ "${CHAPTERS}" -ne 1 ] || [ -f "${MP4BOX_CLI}" ] || MP4BOX_CLI="$(which MP4Box)" || (notify_me "MP4Box missing"; exit 9)
-  [ "${COMTRIM}" -ne 1 ] || [ -f "${FFMPEG_CLI}" ] || FFMPEG_CLI="$(which ffmpeg)" || (notify_me "ffmpeg missing"; exit 9)
+  [ "${COMTRIM}" -ne 1 ] || [ "${CHAPTERS}" -ne 1 ] || [ -f "${FFMPEG_CLI}" ] || FFMPEG_CLI="$(which ffmpeg)" || (notify_me "ffmpeg missing"; exit 9)
   if [ "${AP_CLI}" ]; then
     [ -f "${AP_CLI}" ] || AP_CLI=$(which AtomicParsley) || (notify_me "AtomicParsley missing"; exit 9)
     regex="(.*)version: (.*) (.*)"
@@ -233,8 +231,7 @@ function transcode {
     [ -f "${CURL_CLI}" ] || CURL_CLI="$(which curl)" || (notify_me "curl ${errtxt}"; exit 9)
     [ -f "${HANDBRAKE_CLI}" ] || HANDBRAKE_CLI="$(which HandBrakeCLI)" || (notify_me "HandBrakeCLI ${errtxt}"; exit 9)
     [ -f "${JQ_CLI}" ] || JQ_CLI="$(which jq)" || (notify_me "jq ${errtxt}"; exit 9)
-    [ "${CHAPTERS}" -ne 1 ] || [ -f "${MP4BOX_CLI}" ] || MP4BOX_CLI="$(which MP4Box)" || (notify_me "MP4Box ${errtxt}"; exit 9)
-    [ "${COMTRIM}" -eq 1 ] || [ -f "${FFMPEG_CLI}" ] || FFMPEG_CLI="$(which ffmpeg)" || (notify_me "ffmpeg ${errtxt}"; exit 9)
+    [ "${COMTRIM}" -eq 1 ] || [ "${CHAPTERS}" -ne 1 ] || [ -f "${FFMPEG_CLI}" ] || FFMPEG_CLI="$(which ffmpeg)" || (notify_me "ffmpeg ${errtxt}"; exit 9)
     [ "${AP_CLI}" ] || [ -f "${AP_CLI}" ] || AP_CLI="$(which AtomicParsley)" || (notify_me "AtomicParsley ${errtxt}"; exit 9)
     if [ "${AP_CLI}" ]; then
       [ -f "${AP_CLI}" ] || AP_CLI=$(which AtomicParsley) || (notify_me "AtomicParsley missing"; exit 9)
@@ -350,8 +347,9 @@ function transcode {
   # Instead of trimming commercials, simply mark breaks as chapters
   [ "${comskipped}" -ne "${1}" ] && [ "${CHAPTERS}" -eq 1 ] && notify_me "${bname}: Cannot mark chapters due to lack of comskip results"
   if [ "${CHAPTERS}" -eq 1 ] && [ "${comskipped}" -eq "${1}" ] ; then
-    curl -s "${CHANNELS_DB}/${1}/comskip.vdr" > "${1}.vdr"; vdr="${1}.vdr"  
-    "${MP4BOX_CLI}" -lang "${LANG}" -chap "${vdr}" "${1}.m4v" || notify_me "${bname} chapter marking failed"
+    curl -s "${CHANNELS_DB}/${1}/comskip.ffmeta" > "${1}.ffmeta"; ffmeta="${1}.ffmeta"
+    "${FFMPEG_CLI}" -i "${1}.m4v" -i "${ffmeta}" -map 0 -map_metadata 1 -codec copy "${1}_chap.m4v"
+    ( [ -f "${1}_chap.m4v" ] && mv -f "${1}_chap.m4v" "${1}.m4v" ) || notify_me "${bname} chapter marking failed"
   fi
 
 
@@ -457,7 +455,7 @@ if [ "${BUSY_WAIT}" -eq 1 ] && ( [ "${channels_busy}" == true ] || [ "${transcod
 
   # Loop until Channels DVR isn't busy and there are no other active transcode jobs.  
   while [ "${channels_busy}" == true ] || [ "${transcode_jobs}" -ge 1 ]; do
-    [ "${TIMER}" -gt "${TIMEOUT}" ] && (notify_me "Instance of channels-transcoder.sh timed out at ${delay}." ; exit 11 )
+    if [ "${TIMER}" -gt "${TIMEOUT}" ]; then notify_me "Instance of channels-transcoder.sh timed out at ${delay}." ; exit 11; fi
     sleep 60; TIMER=$((TIMER+60))
     channels_busy="$(curl -s "${CHANNELS_DB}/../../dvr" | jq '.busy')"     # Check if Channels DVR is busy
     transcode_jobs="$(pgrep -fa "/bin/bash channels-transcoder.sh" | grep -vw $$ | grep -c bash)"   # Check for other transcoding jobs
@@ -476,14 +474,14 @@ for i in ${WORKING_DIR/ /\ }/${TMP_PREFIX}.*/progress.txt; do
     if [ ${delete_tmp} -eq 0 ]; then
       notify_me "Transcoded files exist in ${old_tmpdir}. Please delete or move manually."
     else 
-      rm -rf "${old_tmpdir}" && notify_me "Cleaned up ${old_tmpdir}" || notify_me "Couldn't delete ${old_tmpdir}"
+      if rm -rf "${old_tmpdir}"; then notify_me "Cleaned up ${old_tmpdir}"; else notify_me "Couldn't delete ${old_tmpdir}"; fi
     fi 
   fi
 done
 
 # Clean up transcode database
-uniq < "${TRANSCODE_DB}" | sort -n > "tmp.db" 
-[ -f "tmp.db" ] && mv -f tmp.db "${TRANSCODE_DB}" || (notify_me "Could not update transcode.db"; exit 13)
+uniq < "${TRANSCODE_DB}" | sort -n > "tmp.db" || (notify_me "Could not update transcode.db"; exit 13)
+mv -f tmp.db "${TRANSCODE_DB}"
 
 
 ## CREATE LIST OF SHOWS TO BE TRANSCODED.
@@ -506,7 +504,7 @@ fi
 if [ "${apilist}" ] ; then
   for i in ${apilist}; do
     [ "${DAYS}" ] || DAYS=0
-    "${JQ_CLI}" -r '.[] | select (.Path | select(.ID == "'"$i"'") | select (.Deleted == false) | select (.Processed == true) | {ID} | join(" ")' < "${jlist}" >> tmp.list
+    "${JQ_CLI}" -r '.[] | select (.Path) | select(.ID == "'"$i"'") | select (.Deleted == false) | select (.Processed == true) | {ID} | join(" ")' < "${jlist}" >> tmp.list
   done
 fi
 
