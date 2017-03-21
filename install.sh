@@ -14,8 +14,8 @@ function initiate_db {
   if [ "$(uname)" == "Darwin" ] && [ "$(which launchctl)" ] ; then
     echo "Defaulting to using launchd under MacOS" >> "${2}/log"
     mv "${tplist}" "${HOME}/Library/LaunchAgents/${tplist}"
-    echo "You should now run:" >> "${2}/log"
-    echo "sudo launchctl load \"~/Library/LaunchAgents/${tplist}\"" >> "${2}/log"
+    echo "If prompted, please enter your password now"
+    sudo launchctl load "${HOME}/Library/LaunchAgents/${tplist}"
   else
     # Update crontab
     count="$(crontab -l | sed 's/transcode-plex/channels-transcoder/g' | grep -s "channels-transcoder.sh" | wc -l)"
@@ -46,22 +46,23 @@ function initiate_db {
 wget https://github.com/karllmitchell/Channels-DVR-to-Plex/archive/master.zip
 unzip master.zip
 cd Channels-DVR-to-Plex-master || ( echo "Download did not work. Exiting" ; exit 1 )
-prefsdir="${HOME}/.channels-transcoder"
 
-# Update from obsolete location
-if [ -d "${HOME}/.transcode-plex" ] && [ ! -d "${HOME}/.channels-transcoder" ]; then
-  echo "Moving obsolete ~/.transcode-plex to ~/.channels-transcoder"
-  mv -f "${HOME}/.transcode-plex" "${prefsdir}"
+# Determine if Mac or Linux, and if necessary import obsolete folders
+if [ $(uname)=="Darwin" ]; then
+  prefsdir="${HOME}/Library/Application Support/channels-transcoder"
+  if [ -d "${HOME}/Library/Application Support/transcode-plex" ] && [ -d "${HOME}/Library/Application Support/channels-transcoder" ] ; then
+    echo "Moving obsolete ${HOME}/Library/Application Support/transcode-plex to ${HOME}/Library/Application Support/channels-transcoder"
+    mv -f "${HOME}/Library/Application Support/transcode-plex" "${HOME}/Library/Application Support/channels-transcoder"
+  fi  
+else
+  prefsdir="${HOME}/.channels-transcoder"
+  if [ -d "${HOME}/.transcode-plex" ] && [ ! -d "${HOME}/.channels-transcoder" ]; then
+    echo "Moving obsolete ~/.transcode-plex to ~/.channels-transcoder"
+    mv -f "${HOME}/.transcode-plex" "${prefsdir}"
+  fi
 fi
 
-# Alternative installation location for Mac users
-if [ -d "${HOME}/Library/Application Support/transcode-plex" ] && [ -d "${HOME}/Library/Application Support/channels-transcoder" ] ; then
-  echo "Moving obsolete ${HOME}/Library/Application Support/transcode-plex to ${HOME}/Library/Application Support/channels-transcoder"
-  mv -f "${HOME}/Library/Application Support/transcode-plex" "${HOME}/Library/Application Support/channels-transcoder"
-fi
-[ -d "${HOME}/Library/Application Support/channels-transcoder" ] && prefsdir="${HOME}/Library/Application Support/channels-transcoder"
-
-# 
+# Generate prefs directory, with user inputs
 mkdir -p "${prefsdir}"
 if [ ! -f "${prefsdir}/prefs" ] ; then 
   echo "The local destination directory is for producing Plex-like file structures."
@@ -74,7 +75,7 @@ if [ ! -f "${prefsdir}/prefs" ] ; then
   [ "${host_name}" ] || host_name="localhost:8089"
   sed "/HOST*/c\HOST=\"${host_name}\"                                         # Default=\"localhost:8089\".  For running  script remotely." < channels-transcoder.prefs > "${prefsdir}/prefs"
 fi
-echo "Password will be required to install channels-transcoder: "
+echo "Password may be required to install channels-transcoder to /usr/local/bin : "
 sudo mv channels-transcoder.sh /usr/local/bin
 
 
@@ -89,27 +90,20 @@ if [ ! -f "${prefsdir}/transcode.db" ] ; then
   pid=$!
   disown $pid
   if [ "$(uname)" == "Darwin" ] && [ "$(which launchctl)" ] ; then
-    timeout 10 bash -c wait $pid
-    if ps -p $pid >&-; then
-      echo "Transcoding backlog is running in background."
-      echo "Assuming it completes, once done you should run the following command: "
-      echo "  sudo launchctl load \"${HOME}/Library/LaunchAgents/${tplist}\""
-      echo "You may follow progress by running: tail -f \"${prefsdir}/log\""
-    else
-      echo "Installing launch daemon.  Password might be required."
-      sudo launchctl unload "${HOME}/Library/LaunchAgents/${tplist}"
-      sleep 2
-      sudo launchctl load "${HOME}/Library/LaunchAgents/${tplist}"
-    fi
+    echo "LaunchAgent has been installed.  Depending on your backlog, this may take some time."
+    echo "You may follow progress by running: tail -f \"${prefsdir}/log\""
+    echo "You may close this window without harming any remaining processing."
   else
     timeout 10 bash -c wait $pid
     if ps -p $pid >&-; then
       echo "Any backlog is running in the background.  Depending on backlog it may take a while."
       echo "Once complete, a daily cronjob will be set up, running transcoding at 12:01 am."
+      echo "You may follow progress by running: tail -f \"${prefsdir}/log\""
     else
       echo "A daily cronjob has been set up, running transcoding at 12:01 am."
     fi 
     echo "Use crontab -e to change cronjob defaults if desired."
+    echo "You may close this window without harming any remaining processing."
   fi
 fi
 
