@@ -5,11 +5,6 @@
 
 tplist="com.getchannels.channels-transcoder.plist"
 
-function initiate_db {
-  # Initiate database
-  cwd="$(pwd)"
-  /usr/local/bin/channels-transcoder.sh DAYS="${1}"
-  echo "Database initiated.  Any backlog has been transcoded." >> "${2}/log"
   
   if [ "$(uname)" == "Darwin" ] && [ "$(which launchctl)" ] ; then
     echo "Defaulting to using launchd under MacOS" >> "${2}/log"
@@ -34,11 +29,7 @@ function initiate_db {
     crontab mycron
     rm -f mycron
   fi
-   
-  # Remove installation files
-  cd "${cwd}/.." || ( echo "Couldn't remove files" >> "${2}/log" && exit 1 )
-  rm -rf Channels-DVR-to-Plex-master master.zip
-  echo "Installation files removed"
+
   
   exit 0
 }
@@ -81,31 +72,56 @@ sudo mv channels-transcoder.sh /usr/local/bin
 
 if [ ! -f "${prefsdir}/transcode.db" ] ; then
   echo "Channels transcoder to be initiated.  You may choose whether to transcode old recordings or ignore them."
-  echo "If you have a lot of backlog, this will run slowly in the background."
+  echo "If you have a lot of backlog, this will take significant time, so please ensure that your computer remains online."
   echo "Do not delete the Channels-DVR-to-Plex-master folder in the meantime.  It will clean itself up."
+  echo
   echo -n "Enter the desired number of days of Channels DVR recordings backlog to transcode (default=0): "
   read -r days
   [ "${days}" -eq "${days}" ] 2>/dev/null || days=0
-  initiate_db "${days}" "${prefsdir}" &
-  pid=$!
-  disown $pid
+
+  # Initiate database
+  cwd="$(pwd)"
+  echo "Please wait for the database to be initiated and backlog to be transcoded..."
+  /usr/local/bin/channels-transcoder.sh DAYS="${days}"
+  echo "Database initiated.  Backlog transcoded." >> "${2}/log"
+  
+  echo "Installing automation script..."
   if [ "$(uname)" == "Darwin" ] && [ "$(which launchctl)" ] ; then
-    echo "LaunchAgent has been installed.  Depending on your backlog, this may take some time."
-    echo "You may follow progress by running: tail -f \"${prefsdir}/log\""
-    echo "You may close this window without harming any remaining processing."
+    echo "Defaulting to using launchd under MacOS" >> "${2}/log"
+    if [ ! -f "${HOME}/Library/LaunchAgents/${tplist}" ]; then
+      echo "If prompted, please enter your password now..."
+      mv -f "${tplist}" "${HOME}/Library/LaunchAgents/${tplist}"
+      sudo launchctl load "${HOME}/Library/LaunchAgents/${tplist}"
+      echo "Launch Agent installed"
   else
-    timeout 10 bash -c wait $pid
-    if ps -p $pid >&-; then
-      echo "Any backlog is running in the background.  Depending on backlog it may take a while."
-      echo "Once complete, a daily cronjob will be set up, running transcoding at 12:01 am."
-      echo "You may follow progress by running: tail -f \"${prefsdir}/log\""
-    else
-      echo "A daily cronjob has been set up, running transcoding at 12:01 am."
-    fi 
-    echo "Use crontab -e to change cronjob defaults if desired."
-    echo "You may close this window without harming any remaining processing."
+    # Update crontab
+    count="$(crontab -l | sed 's/transcode-plex/channels-transcoder/g' | grep -s "channels-transcoder.sh" | wc -l)"
+    case $count in
+      0)  crontab -l > mycron
+          echo "01 00 * * * nice /usr/local/bin/channels-transcoder.sh > \"${2}/log\"" >> mycron
+          echo "Cronjob added, will run at 12:01 each night." >> "${2}/log"
+	  ;;
+      1)  crontab -l | sed 's/transcode-plex/channels-transcoder/g' > mycron
+          echo "Using/adapting existing crontab" >> "${2}/log"
+          ;;
+      *)  crontab -l | sed 's/transcode-plex/channels-transcoder/g' | grep -v "channels-trancoder" > mycron
+          echo "01 00 * * * nice /usr/local/bin/channels-transcoder.sh > \"${2}/log\"" >> mycron
+          echo "Cronjob had multiple entriees.  Replaced with a single one that will run at 12:01 each night." >> "${2}/log"
+    esac
+    crontab mycron
+    rm -f mycron
   fi
+else
+  echo "Existing transcode.db detected."
+  echo "If you wanted to update your crontab or LaunchAgent, delete the channels-transcoder.sh line in your crontab,"
+  echo " or, if on a Mac, delete the ${HOME}/Library/LaunchAgents/${tplist} launch agent."
+  echo "Otherwise, you're good to go!"
 fi
+   
+# Remove installation files
+cd "${cwd}/.." || ( echo "Couldn't remove files" >> "${2}/log" && exit 1 )
+rm -rf Channels-DVR-to-Plex-master master.zip
+echo "Installation files removed"
 
 echo "Done."
 
