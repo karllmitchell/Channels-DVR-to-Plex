@@ -62,7 +62,7 @@ if [ ! -f "${prefsdir}/transcode.db" ] ; then
     if [ ! -f "${HOME}/Library/LaunchAgents/${tplist}" ]; then
       echo "If prompted, please enter your password now..."
       mv -f "${tplist}" "${HOME}/Library/LaunchAgents/${tplist}"
-      sudo launchctl load "${HOME}/Library/LaunchAgents/${tplist}"
+      launchctl load "${HOME}/Library/LaunchAgents/${tplist}"
       echo "Launch Agent installed"
   else
     # Update crontab
