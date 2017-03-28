@@ -211,8 +211,8 @@ fi
 if [ ! -f "${TRANSCODE_DB}" ] || [ "${CLEAR_DB}" -eq 1 ] ; then
   [ "${DAYS}" ] || DAYS=0
   if [ ! -w "${TRANSCODE_DB}" ] ; then
-    notify_me "Cannot write to ${TRANSCODE_DB}, using ${HOME}/${BN}/transcode.db instead"
-    TRANSCODE_DB="${HOME}/${BN}/transcode.db"
+    notify_me "Cannot write to ${TRANSCODE_DB}, using ${HOME}/.${BN}/transcode.db instead"
+    TRANSCODE_DB="${HOME}/.${BN}/transcode.db"
   fi 
   if [ "$(uname)" == "Darwin" ]; then since=$(date -v-${DAYS}d +%FT%H:%M); else since=$(date -d "$(date) - ${DAYS} days" +%FT%H:%M); fi
   [ "${DEBUG}" -eq 1 ] && echo "Initiating database with recordings up to ${since}.  Using ${CURL_CLI} and ${JQ_CLI}."
