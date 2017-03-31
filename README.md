@@ -6,7 +6,9 @@ Please note that this has not been thoroughly tested on all systems, and that it
 
 Ideally this should be installed using the *install.sh* script, thus:
 
-curl -f -s https://raw.githubusercontent.com/karllmitchell/Channels-DVR-to-Plex/master/install.sh | bash
+curl https://raw.githubusercontent.com/karllmitchell/Channels-DVR-to-Plex/master/install.sh > install.sh;  bash install.sh
+
+Do NOT pipe to bash, or use any other type of shell, or it will fail.
 
 Note that this can also be used to update existing configurations.  However, if the script asks for a destination directory then your installation is probably sufficiently old or non-standard that you should do it manually if you want to preserve your settings.  Also, if you are a new user, consider the question about number of days backlog to transcode carefully, as this can take a long time. DAYS=0 is pretty safe, and you can always transcode missed shows later from the command line.
 
@@ -82,14 +84,14 @@ This should be set up for users that run the install script.
 
 For most Linux users it's probably easiest to run this as a cron job, e.g. the default:
 
-1 0 * * * /usr/local/bin/channels-transcoder.sh > ~/.channels-transcoder/log
+1 0 * * * /usr/local/bin/channels-transcoder.sh >> ~/.channels-transcoder/log
 
 This would running at 12:01am every night (by default the script will also wait internally for up to 4 hours for Channels DVR to stop recording/comskipping before starting).
 
 For Mac users, I've included a LaunchAgent file in this archive (com.getchannels.channels-transcoder.plist), typically placed into the ~/Library/LaunchAgents directory. Once it's there, run the following:
 
-sudo launchctl load /Library/LaunchAgents/com.getchannels.channels-transcoder.plist
-sudo launchctl start com.getchannels.channels-transcoder
+launchctl load ${HOME}/Library/LaunchAgents/com.getchannels.channels-transcoder.plist
+launchctl start com.getchannels.channels-transcoder
 
 The log file is also in the prefs director, and so can be monitored easily (e.g. tail -f ~/.channels-transcoder/log).
 
