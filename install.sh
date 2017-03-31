@@ -63,9 +63,11 @@ if [ "${nosudo}" ]; then
   mkdir -p "${targetdir}"
   echo "Running completely in user-space.  Ensure ${HOME}/bin is in your path."
   mv -f "${fname}.sh" "${targetdir}"
+  chmod 755 "${targetdir}/${fname}.sh"
 else
   echo "Password may be required to install channels-transcoder to /usr/local/bin : "
   sudo mv -f "${fname}.sh" "${targetdir}"
+  sudo chmod 755 "${targetdir}/${fname}.sh"
 fi
 echo "Main binary installed."
 echo
