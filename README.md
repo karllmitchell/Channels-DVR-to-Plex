@@ -14,7 +14,7 @@ Note that this can also be used to update existing configurations.
 
 Consider carefully the question about number of days backlog to transcode, as this can take a long time. DAYS=0 is pretty safe, and you can always transcode missed shows later from the command line.
 
-The final step is that you'll need to go to your Plex web interface and add the TV Shows and Movies folder within your desination directory to your Plex library.  By default these are "${HOME}/Movies/TV Shows" and "${HOME}/Movies/Movies".
+The final step is that you'll need to go to your Plex web interface and add the TV Shows and Movies folder within your desination directory to your Plex library.  By default these are "${HOME}/Movies/Plex/TV Shows" and "${HOME}/Movies/Plex/Movies".
 
 For 90% of you, and the TL;DR crowd, that's probably enough to get you going.  
 
