@@ -37,14 +37,16 @@ echo
 mkdir -p "${prefsdir}"
 if [ ! -f "${prefsdir}/prefs" ] ; then 
   echo "The local destination directory is for producing Plex-like file structures." 
-  while [ ! "${destination}" ] ; do
-    echo -n "Enter the desired destination directory, followed by [ENTER]: "
-    read -r destination   # Destination for video recordings
-  done
+  echo -n "Enter the desired destination directory (default \"${HOME}/Movies/Plex\"), followed by [ENTER]: "
+  read -r destination   # Destination for video recordings
+  [ "${destination}" ] || destination="${HOME}/Movies/Plex"
+  mkdir -p "${destination}" || ( echo "Destination directory unwritable.  Bailing.  Please re-run installation script." ; exit 1 )
+  
   echo "If you're running this script on a machine other than the one running Channels DVR, you should specify the host here."
   echo -n "Enter the hostname and port number (leave blank for default \"localhost:8089\"), followed by [ENTER]: "
   read -r host_name       # Host for video recordings
   [ "${host_name}" ] || host_name="localhost:8089"
+  
   # Install prefs file
   cat channels-transcoder.prefs | sed "/DEST_DIR*/c\DEST_DIR=\"${destination}\"" | sed "/HOST*/c\HOST=\"${host_name}\"" > "${prefsdir}/prefs"
   echo "Preferences file generated."
