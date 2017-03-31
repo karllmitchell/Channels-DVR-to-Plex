@@ -85,7 +85,7 @@ echo -n "Enter the desired number of days of Channels DVR recordings backlog to 
 read -r days
 [ "${days}" ] || days=0
 [ "${days}" -gt 0 ] && echo "Please wait.  You may check progress by opening another terminal and running: tail -f \"${prefsdir}/log\""
-"${targetdir}/${fname}.sh" DAYS="${days}" &>> "${prefsdir}/log"
+"${targetdir}/${fname}.sh" DAYS="${days}" 2>&1 >> "${prefsdir}/log"
 echo "Database OK."
 echo
 
