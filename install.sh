@@ -8,6 +8,24 @@ fname="channels-transcoder"
 oname="transcode-plex"
 targetdir="/usr/local/bin/"
 
+echo "Checking for critical pre-requisite programs: jq curl HandBrakeCLI ffmpeg realpath"
+echo "Optional packages include AtomicParsley >= 0.9.6 and parallel >= 20161222"
+echo "If they do not exist on your system, please use whichever package manager works for your system to install them"
+echo "On Ubuntu/Debian Linux: sudo apt-get install jq curl HandBrakeCLI ffmpeg realpath"
+echo "On Mac, use homebrew, macports or fink similarly, for the same packages"
+
+[ ! "$(which curl)" ] && echo " curl not installed." && prfail=1 
+[ ! "$(which HandBrakeCLI)" ] && [ ! "$(which handbrake-cli)" ] && echo " HandBrakeCLI not installed." && prfail=1
+[ ! "$(which ffmpeg)" ] && echo " ffmpeg not installed." && prfail=1 
+if [ ! "$(which realpath)" ] && [ ! "$(alias test3)" ] ; then
+  echo " realpath not installed."
+  echo "  - If you cannot find realpath, then please set up an alias in ~/.bashrc, ~/.profile (or your system equivalent) thus:"
+  echo "  -  alias realpath='[[ \$1 = /* ]] && echo \"\$1\" || printf \"%s/\${1#./}\" \${PWD}'"
+  prfail=1 
+fi
+[ "${prfail}" -eq 1 ] && [ "$1" != "force" ] && echo "Some pre-requisites not installed.  Please try again or use \"bash install.sh force\"" && exit 1
+
+
 # Download archive, unzip and change directories
 rm -f master.zip*
 wget https://github.com/karllmitchell/Channels-DVR-to-Plex/archive/master.zip
@@ -85,7 +103,7 @@ echo -n "Enter the desired number of days of Channels DVR recordings backlog to 
 read -r days
 [ "${days}" ] || days=0
 [ "${days}" -gt 0 ] && echo "Please wait.  You may check progress by opening another terminal and running: tail -f \"${prefsdir}/log\""
-"${targetdir}/${fname}.sh" DAYS="${days}" 2>&1 >> "${prefsdir}/log"
+"${targetdir}/${fname}.sh" DAYS="${days}" > "${prefsdir}/log" 2>&1
 echo "Database OK."
 echo
 
