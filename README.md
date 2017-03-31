@@ -10,7 +10,13 @@ curl https://raw.githubusercontent.com/karllmitchell/Channels-DVR-to-Plex/master
 
 Do NOT pipe to bash, or use any other type of shell, or it will fail.
 
-Note that this can also be used to update existing configurations.  However, if the script asks for a destination directory then your installation is probably sufficiently old or non-standard that you should do it manually if you want to preserve your settings.  Also, if you are a new user, consider the question about number of days backlog to transcode carefully, as this can take a long time. DAYS=0 is pretty safe, and you can always transcode missed shows later from the command line.
+Note that this can also be used to update existing configurations.
+
+Consider carefully the question about number of days backlog to transcode, as this can take a long time. DAYS=0 is pretty safe, and you can always transcode missed shows later from the command line.
+
+The final step is that you'll need to go to your Plex web interface and add the TV Shows and Movies folder within your desination directory to your Plex library.  By default these are "${HOME}/Movies/TV Shows" and "${HOME}/Movies/Movies".
+
+For 90% of you, and the TL;DR crowd, that's probably enough to get you going.  
 
 **The main script**
 
@@ -20,11 +26,9 @@ At the core of the script is HandBrakeCLI, which performs the transcoding via li
 
 Although the code will run on extremely underpowered systems, including low cost ARM-based SOCs runnings Linux, by default I do not recommend anything with less than 1 GByte, preferable 2 GBytes, of RAM (certainly at least 750 MBytes unused).  If you are accessing the inputs files across a network, you will want a fast one (Gigabit throughout, ideally), or to set aside at least a few tens of GBytes of storage and use the TEMP_COPY=1 argument.  Many modern intel systems can almost certainly process faster-than-realtime (i.e. a 1-hr show will take less than 1-hr), but an ARM SOC like a Raspberry Pi would probably be about 6x slower than real-time, and might not keep up with your TV viewing.
 
-**Set up and first run**
+**Set up, first run and the transcode database**
 
-The script must be run as a user with superuser access.  Do make sure that you can write to the destination directory and read from the source directory (if held locally).  It accepts various settings from a mandatory preferences file, which can also be overridden on the command line (see below).  If the installation script is not used, make sure to rename the channels-transcoder.prefs file to prefs (see below) and place it in ~/.channels-transcoder/ or  ~/Library/Application Support/channels-transcoder/ (Mac default).  Unless you use the install script, you should edit the first line of the prefs file (DEST_DIR) and make sure that Plex is set up to that it points at "$DEST_DIR/Movies" and "$DEST_DIR/TV Shows".  There are instructions in the prefs file next to each option that can be set (see section below on "Preferences file").
-
-On this first run (or install script) it will also initialise a database which lists previously transcoded recordings, but note that it will by default not transcode any previously recorded shows unless you respond to the DAYS prompt when asked (install script) or you run from the command-line with these options:
+On this first run (or install script), the code will initialise a database that lists previously transcoded recordings. Note that it will by default not transcode any previously recorded shows unless you respond to the DAYS prompt when asked (install script), or you run from the command-line with these options:
 
 channels-transcoder.sh CLEAR_DB=1 DAYS=N
 
@@ -40,7 +44,7 @@ If you want something specific transcoded ASAP, and have no concerns about resou
 
 **Preferences file**
 
-The preferences file mentioned previous has a lot of settings.  This might seem intimidating, but most are not needed for regular users, and all are commented extensively within the file.  The only critical one for MOST users is the DEST_DIR one, which points at somewhere Plex can see.  The install script will prompt you for it.  It is assumed that "TV Shows" and "Movies" are subdirectories in that file.  Once set up, you should easily be able to add these folders to Plex.  If you prefer to integrate with existing Plex folders, and your "TV Shows" and "Movies" folders are named or configured in that way, you can work around it using symbolic links.
+The preferences file, typically in ~/.channels-transcoder/prefs or ~/Library/Application Support/channels-transcoder/prefs, has a lot of settings.  This might seem intimidating, but most are not needed for regular users, and all are commented extensively within the file.  The only critical one for MOST users is the DEST_DIR one, which points at somewhere Plex can see.  The install script will prompt you for it.  It is assumed that "TV Shows" and "Movies" are subdirectories in that file.  Once set up, you should easily be able to add these folders to Plex.  If you prefer to integrate with existing Plex folders, and your "TV Shows" and "Movies" folders are named or configured in that way, you can work around it using symbolic links.
 
 Some interesting options are CHAPTERS=1 (selected by default), which uses Channels DVR commercial markers as chapter markers in the output file, and COMTRIM=1, which actually completely removes the commercial breaks.  I do not recommend  using this latter mode unless you are very confident in the commercial detection, which in my experience produces quite a few blunders unless you have tuned your comskip.ini file extremely carefully. Note that if both are set, COMTRIM will "win".
 
