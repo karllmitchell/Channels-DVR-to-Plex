@@ -132,7 +132,8 @@ function notify_me {
 
 ## CREATE AND GO TO A TEMPORARY WORKING DIRECTORY
 cwd=$(pwd)
-if [ ! "${WORKING_DIR}" ]; then WORKING_DIR="/tmp"; fi
+[ "${WORKING_DIR}" ] || WORKING_DIR="/tmp"
+[ "${TMP_PREFIX}" ] || TMP_PREFIX="transcode"
 TMPDIR=$(mktemp -d "${WORKING_DIR}/${TMP_PREFIX}.XXXXXXXX") || exit 2
 cd "${TMPDIR}" || ( notify_me "Cannot access ${WORKING_DIR}"; exit 2 )
 [ "$VERBOSE" -ne 0 ] &&  echo "Working directory: ${TMPDIR}" 
@@ -224,6 +225,7 @@ if [ ! -w "${TRANSCODE_DB}" ] ; then
   exit 13
 fi
 
+
 function transcode {
   # Re-check required programs in case of remote execution
   if [ "${PARALLEL}" ] ; then
@@ -231,7 +233,7 @@ function transcode {
     [ -f "${CURL_CLI}" ] || CURL_CLI="$(which curl)" || (notify_me "curl ${errtxt}"; exit 9)
     [ -f "${HANDBRAKE_CLI}" ] || HANDBRAKE_CLI="$(which HandBrakeCLI)" || (notify_me "HandBrakeCLI ${errtxt}"; exit 9)
     [ -f "${JQ_CLI}" ] || JQ_CLI="$(which jq)" || (notify_me "jq ${errtxt}"; exit 9)
-    [ "${COMTRIM}" -eq 1 ] || [ "${CHAPTERS}" -ne 1 ] || [ -f "${FFMPEG_CLI}" ] || FFMPEG_CLI="$(which ffmpeg)" || (notify_me "ffmpeg ${errtxt}"; exit 9)
+    [ -f "${FFMPEG_CLI}" ] || FFMPEG_CLI="$(which ffmpeg)" || (notify_me "ffmpeg ${errtxt}"; exit 9)
     [ "${AP_CLI}" ] || [ -f "${AP_CLI}" ] || AP_CLI="$(which AtomicParsley)" || (notify_me "AtomicParsley ${errtxt}"; exit 9)
     if [ "${AP_CLI}" ]; then
       [ -f "${AP_CLI}" ] || AP_CLI=$(which AtomicParsley) || (notify_me "AtomicParsley missing"; exit 9)
@@ -376,11 +378,11 @@ function transcode {
     #subtype="$(${JQ_CLI} -r '.Airing.Raw.program.subType' < "${1}.json")"
    
     # HD tags
-    hdvideo=0
     #width="$(${JQ_CLI} '.streams[] | select(.codec_type == "video") | .width' < "${1}_mi.json")"
-    height="$(${JQ_CLI} '.streams[] | select(.codec_type == "video") | .height' < "${1}_mi.json")"
-    [ "$height" -gt 700 ] && hdvideo=1
-    [ "$height" -gt 1000 ] && hdvideo=2
+    #height="$(${JQ_CLI} '.streams[] | select(.codec_type == "video") | .height' < "${1}_mi.json")"
+    #height=$(($MAXSIZE<$height?$MAXSIZE:$height))  # Limit to defined MAXSIZE
+    height=$("${FFMPEG_CLI}" -i "${1}.m4v" 2>&1 | grep "Stream #0:0" | perl -lane 'print $1 if /([0-9]{2,}x[0-9]+)/' | cut -dx -f2)
+    hdvideo=0 && [ "$height" -gt 700 ] && hdvideo=1 && [ "$height" -gt 1000 ] && hdvideo=2
     [ "${hdvideo}" ] && AP_OPTS+=(--hdvideo $hdvideo)
     
     # Image tags
@@ -553,13 +555,13 @@ if [ "$PARALLEL_CLI" ]; then
   done < "${rlist}"
 else 
   while read -r i ; do
-    exitcode=$(transcode "${i}")
-      case $exitcode in
-        0) echo "${i}" >> "${TRANSCODE_DB}" ;;
-        1) echo "${i}" >> "${TRANSCODE_DB}" ;;
-        3) echo "${i}" >> "${TRANSCODE_DB}"; flist+="${i} " ;;
-        *) flist+="${i}" ;;
-      esac
+    transcode "${i}"
+    case $? in
+      0) echo "${i}" >> "${TRANSCODE_DB}" ;;
+      1) echo "${i}" >> "${TRANSCODE_DB}" ;;
+      3) echo "${i}" >> "${TRANSCODE_DB}"; flist+="${i} " ;;
+      *) flist+="${i}" ;;
+    esac
   done < "${rlist}"
 fi
 
