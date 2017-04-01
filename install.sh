@@ -24,8 +24,8 @@ echo "On Mac, use homebrew, macports or fink similarly."
 if [ ! "$(which realpath)" ] && [ ! "$(alias realpath)" ] ; then
   echo " realpath not installed."
   echo "  - If you cannot find realpath, then please set up an alias in ~/.bashrc,"
-  echo "    ~/.profile (or your system equivalent) thus:"
-  echo "  -  alias realpath='[[ \$1 = /* ]] && echo \"\$1\" || printf \"%s/\${1#./}\" \${PWD}'"
+  echo "    ~/.profile (or your system equivalent) and relog to activate, thus:"
+  echo "     alias realpath='[[ \$1 = /* ]] && echo \"\$1\" || printf \"%s/\${1#./}\" \${PWD}'"
   prfail=1 
 fi
 [ "${prfail}" -eq 1 ] && [ "$1" != "force" ] && echo "Some pre-requisites not installed." && echo "Please try again or use \"bash install.sh force\"" && exit 1
