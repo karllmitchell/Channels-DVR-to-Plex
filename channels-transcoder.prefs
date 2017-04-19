@@ -44,24 +44,20 @@ DAYS=""                                      # Limit transcoding to shows record
 IFTTT_MAKER_KEY=""                           # Set to "" if you do not want IFTTT Maker notifications.  A 22-digit code.
 
 # Encoder presets.  The defaults should work well for most people.   Only edit if you know what you're doing. 
-PRESET="AppleTV 3"                           # HandBrakeCLI preset determines output default quality/resolution, run HandBrakeCLI -z to show list
-                                             # More recent versions of HandBrakeCLI may wish to change to "Apple 1080p30 Surround" 
-                                             # For old/slow clients use "AppleTV 2" or (newer version) "Apple 720p30 Surround".
+QUALITY="21"                                 # Only change if you know what you're doing.  This is the -crf value in ffmpeg x264 encoding.
+                                             # Sane values for broadcast TV are from 18 (very high) to 28 (poor).
+                                             # Note that this is the baseline for 1080p, script sets lower values for 720p (-1), 576p (-2) and 480p (-3) output.
 SPEED="veryfast"                             # This trades transcoding speed for filesize. In my own tests, veryfast often produces smaller files than medium!
                                              # Faster settings give theoretically larger filesizes and shorter transcode times; They do not affect quality.
 					     # The only recommended options are: slow, medium, fast, faster, fastest, veryfast.
-MAXSIZE=1080                                 # EXPERIMENTAL: Sets resolution limit (based on height). Works only for 16:9 ratio, e.g. 1080, 720, 576, 540, 360
-ALLOW_EAC3=0                                 # EXPERIMENTAL: Enables preservation of Dolby Digital Plus (where available) in a manner playable by AppleTV 4.
-EXTRAS=(--optimize --subtitle 1)             # Extra options set here.  Read HandBrakeCLI documentation before editing!
+MAXSIZE=1080                                 # Sets resolution limit (based on height), and so e.g. set 720 for up to 720p output
 
 # Locations of programs if not in your path.  If required, the software will look for it in your path if you're not explicit (e.g. ="").
-# AP_CLI (for iTunes tagging) and CAFFEINATE_CLI (to prevent sleep) must have values specified if order for those features to work.  Just =1 will work if in PATH.
-# Full pathname, e.g. "/opt/local/bin/HandBrakeCLI" is necessary if not in PATH.
-HANDBRAKE_CLI=""                             # Location of HandBrakeCLI binary.  This software is required for the code to work.
+# AP_CLI (for iTunes tagging) must have value specified if order for this features to work.  Just =1 will work if in PATH.
+# It is recommended that FFMPEG_CLI points at the version distributed with Channels DVR, from April 17th, 2017 onwards.
 CURL_CLI=""                                  # Location of curl binary.  This software is required for the code to work.
 JQ_CLI=""                                    # Location of jq binary.  This software is required for the code to work.
-FFMPEG_CLI=""                                # Location of ffmpeg binary.  Only required if COMTRIM=1.
-CAFFEINATE_CLI=""                            # Location of caffeinate binary.  Prevents sleep, typically only found on Mac. Can substitute with other command. 
+FFMPEG_CLI="${HOME}/channels-dvr/latest/ffmpeg"  # Location of ffmpeg binary.  Only required if COMTRIM=1.
 AP_CLI=""                                    # Location of AtomicParsley binary.  Only required for iTunes file tagging.  Leave blank if not required.
                                              # >0.9.6 non-mainline AtomicParsley is required.  Recommend using fork: https://bitbucket.org/wez/atomicparsley/
 
