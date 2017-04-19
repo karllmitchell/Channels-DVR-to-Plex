@@ -4,13 +4,11 @@
 # This script is primarily intended to be run occasionally (e.g. daily), e.g. using launchd or cron job, during quiet time
 # It can also be run on specific recordings, can be used locally or remotely to Channels DVR computer, and can distribute jobs remotely, as required.
 # Pre-requisites:
-#  HandBrakeCLI (video transcoding application)
 #  Curl (for accessing web resources)
 #  jq (for processing JSON databases)
 # Optional pre-requisites:
 #  An IFTTT Maker Key for phone status notifications.
 #  FFMPEG (a part of channels DVR, but you'll need to point to it) for commercial trimming/marking
-#  Caffeinate (a mac utility to prevent sleep)
 #  Parallel (GNU software for parallel processing; Can run jobs in parallel across cores, processors or even computers if set up correctly)
 #  AtomicParsley (software for writing iTunes tags) >= 0.9.6 [Removal of older versions recommended, or it'll try to use them and fail]
 # Unix prerequisites for above packages (use e.g. apt-get/macports):
@@ -162,14 +160,9 @@ function ver {
 [ -f "${CURL_CLI}" ] || CURL_CLI="$(which curl)" || (notify_me "curl missing"; exit 9)
 [ -f "${JQ_CLI}" ] || JQ_CLI="$(which jq)" || (notify_me "jq missing"; exit 9)
 
-# Prevent sleep on systems with caffeinate
-[ ! "${CAFFEINATE_CLI}" ] || [ -f "${CAFFEINATE_CLI}" ] || CAFFEINATE_CLI="$(which caffeinate)" || (notify_me "caffeinate missing"; exit 9)
-[ -f "${CAFFEINATE_CLI}" ] && "${CAFFEINATE_CLI}" -s && cpid=$!
-
 # Additional command-line programs for transcode function, only checked if not using remote execution with GNU parallel
 if [ ! "${PARALLEL_CLI}" ]; then
-  [ -f "${HANDBRAKE_CLI}" ] || HANDBRAKE_CLI="$(which HandBrakeCLI)" || (notify_me "HandBrakeCLI missing"; exit 9)
-  [ "${COMTRIM}" -ne 1 ] || [ "${CHAPTERS}" -ne 1 ] || [ -f "${FFMPEG_CLI}" ] || FFMPEG_CLI="$(which ffmpeg)" || (notify_me "ffmpeg missing"; exit 9)
+  [ -f "${FFMPEG_CLI}" ] || FFMPEG_CLI="$(which ffmpeg)" || (notify_me "ffmpeg missing"; exit 9)
   if [ "${AP_CLI}" ]; then
     [ -f "${AP_CLI}" ] || AP_CLI=$(which AtomicParsley) || (notify_me "AtomicParsley missing"; exit 9)
     regex="(.*)version: (.*) (.*)"
@@ -225,13 +218,70 @@ if [ ! -w "${TRANSCODE_DB}" ] ; then
   exit 13
 fi
 
+# FUNCTION TO USE ATOMIC PARSLEY FOR TAGGING, ACCESSING CHANNELS_DB
+function ap_tagger {
+  # $1 is the Channels DVR ID, $2 is the output format height
+  # Existence of ${1}.json and ${1}.m4v are assumed
+  
+  # TAGGING
+  subtype="$("${JQ_CLI}" -r '.Airing.EpisodeNumber' < "${1}.json")"  # Is Feature Film or part of Series?
+   
+  # Build some tags
+  AP_OPTS=()
+
+  if [ "${subtype}" == "Series" ]; then
+    AP_OPTS+=(--genre "TV Shows" --stik "TV Show")	 
+    AP_OPTS+=(--TVShowName "$(${JQ_CLI} -r '.Airing.Title' < "${1}.json")")
+    AP_OPTS+=(--title "$(${JQ_CLI} -r '.Airing.EpisodeTitle' < "${1}.json")")
+    season="$(printf "%.02d" "$(jq -r '.Airing.SeasonNumber' < "${1}.json")")"
+    episode="$(printf "%.02d" "$(jq -r '.Airing.EpisodeNumber' < "${1}.json")")"
+    AP_OPTS+=(--TVEpisode "${season}${episode}" --TVEpisodeNum "${episode}" --TVSeason "${season}")   
+  fi
+  if [ "${subtype}" == "Feature Film" ]; then
+    AP_OPTS+=(--genre "Movies" --stik "Movie")
+    AP_OPTS+=(--title "$(${JQ_CLI} -r '.title' < "${1}.json")")
+  fi
+  
+  AP_OPTS+=(--geID "$(${JQ_CLI} -r '.Airing.Genres[0]' < "${1}.json")")
+  AP_OPTS+=(--contentRating "$(${JQ_CLI} -r '.Airing.Raw.ratings[0].code' < "${1}.json")")
+  AP_OPTS+=(--description "$(${JQ_CLI} -r '.Airing.Raw.program.shortDescription' < "${1}.json")")
+  AP_OPTS+=(--longdesc "$(${JQ_CLI} -r '.Airing.Raw.program.longDescription' < "${1}.json")")
+  AP_OPTS+=(--year "$(${JQ_CLI} -r '.Airing.Raw.program.releaseYear' < "${1}.json")")
+  AP_OPTS+=(--cnID "$(${JQ_CLI} -r '.Airing.ProgramID' < "${1}.json" | cut -c3-)")
+  
+  # HD tags
+  hdvideo=0 && [ "$2" -gt 700 ] && hdvideo=1 && [ "$2" -gt 1000 ] && hdvideo=2
+  AP_OPTS+=(--hdvideo "$hdvideo")
+  
+  # Image tags
+  imageloc="$(${JQ_CLI} -r '.Airing.Image' < "${1}.json")"
+  artwork="${1}.jpg"
+  "${CURL_CLI}" -s -o "${artwork}" -O "${imageloc}"
+  [ -f "${artwork}" ] && AP_OPTS+=(--artwork "${artwork}") 
+  
+  # Network name
+  channel="$(${JQ_CLI} -r '.Airing.Channel' < "${1}.json")"
+  network="$("${CURL_CLI}" -s "${CHANNELS_DB}/../guide/channels" | "${JQ_CLI}" -r '.[] | select(.Number=="'"$channel"'") | .Name')" 
+  AP_OPTS+=(--TVNetwork "${network}")
+  
+  # Command that actually does the tagging!
+  if [ "$VERBOSE" -ne 0 ] ; then
+    for arg in "${AP_CLI}" "${1}.m4v" "${AP_OPTS[@]}"; do
+      if [[ $arg =~ \  ]]; then arg=\"$arg\"; fi
+      echo -n "$arg "
+    done; echo
+  fi
+  
+  "${AP_CLI}" "${1}.m4v" "${AP_OPTS[@]}" || return 1
+  return 0
+}
+
 
 function transcode {
   # Re-check required programs in case of remote execution
   if [ "${PARALLEL}" ] ; then
     errtxt="cannot be found on remote system. Critical error. Bailing."
     [ -f "${CURL_CLI}" ] || CURL_CLI="$(which curl)" || (notify_me "curl ${errtxt}"; exit 9)
-    [ -f "${HANDBRAKE_CLI}" ] || HANDBRAKE_CLI="$(which HandBrakeCLI)" || (notify_me "HandBrakeCLI ${errtxt}"; exit 9)
     [ -f "${JQ_CLI}" ] || JQ_CLI="$(which jq)" || (notify_me "jq ${errtxt}"; exit 9)
     [ -f "${FFMPEG_CLI}" ] || FFMPEG_CLI="$(which ffmpeg)" || (notify_me "ffmpeg ${errtxt}"; exit 9)
     [ "${AP_CLI}" ] || [ -f "${AP_CLI}" ] || AP_CLI="$(which AtomicParsley)" || (notify_me "AtomicParsley ${errtxt}"; exit 9)
@@ -250,6 +300,7 @@ function transcode {
   # Get filename
   "${CURL_CLI}" -s "${CHANNELS_DB}/${1}" > "${1}.json"
   "${CURL_CLI}" -s "${CHANNELS_DB}/${1}/mediainfo.json" > "${1}_mi.json"
+  
   ifile="${SOURCE_DIR}/$(${JQ_CLI} -r '.Path' < "${1}.json")"
   [ "${DEBUG}" -eq 1 ] && echo "Source location: ${ifile}"
   fname=$(basename "${ifile}")	    # Name of original file
@@ -306,124 +357,69 @@ function transcode {
   fi
 
   # ... or is being created to in parallel
-  [ "${TMP_PREFIX}" ] && [ "$(lsof 2>&1 | grep -s "${1}.m4v" | grep "HandBrake" | grep "${TMP_PREFIX}")" ] && notify_me "${bname} transcoding already underway" && return 1
+  [ "${TMP_PREFIX}" ] && [ "$(lsof 2>&1 | grep -s "${1}.m4v" | grep "ffmpeg" | grep "${TMP_PREFIX}")" ] && notify_me "${bname} transcoding already underway" && return 1
 
   # Looks to see if we have direct access to comskip logs
   comskipped="$(jq -r 'select (( .Commercials[0] )) | {ID} | join (" ")' < "${1}.json" )"
+  
   
   # COMMERCIAL TRIMMING (optional)
   [ "${comskipped}" -ne "${1}" ] && [ "${COMTRIM}" -eq 1 ] && notify_me "${bname}: Cannot be comtrimmed due to lack of comskip results"
   if [ "${COMTRIM}" -eq 1 ] && [ "${comskipped}" -eq "${1}" ]; then
     # Perform the actual file splitting
     curl -s "${CHANNELS_DB}/${1}/comskip.ffsplit" > "${1}.ffsplit"; ffsplit="${1}.ffsplit"
-    if [ -f "${ffsplit}" ]; then
-      [ "$VERBOSE" -ne 0 ] && echo "Attempting to trim input file"
-      while read -r split <&3; do
-        "${FFMPEG_CLI}" -i "${fname}" "${split}"
-      done 3< "${ffsplit}" 
-      for i in segment*; do echo "file \'${i}\'" >> "${bname}.lis" ; done
-      "${FFMPEG_CLI}" -f concat -i "${bname}.lis" -c copy "${1}_cut.${extension}"
-      rm -f segment*
-      ( [ -f "${1}_cut.${extension}" ] && mv -f "${1}_cut.${extension}" "${fname}" ) || notify_me "${bname} comtrim failed"
-    fi
+    [ "$VERBOSE" -ne 0 ] && echo "Attempting to trim input file"
+    while read -r split <&3; do
+      "${FFMPEG_CLI}" -i "${fname}" "${split}" || ctfail=1
+    done 3< "${ffsplit}" 
+    for i in segment*; do echo "file \'${i}\'" >> "${bname}.lis" ; done   
+    [ $ctfail -eq 1 ] || "${FFMPEG_CLI}" -f concat -i "${bname}.lis" -c copy "${1}_cut.${extension}" || ctfail=1
+    [ $ctfail -eq 1 ] || mv -f "${1}_cut.${extension}" "${fname}" || ctfail=1
+    [ $ctfail -eq 1 ] && notify_me "${bname} comtrim failed" 
+    rm -f segment* "${bname}.lis"
   fi
 
-  # THE ACTUAL TRANSCODING PART
-  echo "Attempting to transcode ${fname} ..."
-  if [ "${VERBOSE}" ] ; then EXTRAS+=(-v "${VERBOSE}") ; fi
-  if [ "$MAXSIZE" ]; then EXTRAS+=(--maxHeight "$MAXSIZE" --maxWidth $((MAXSIZE * 16 / 9))); fi
-  if [ "${ALLOW_EAC3}" ]; then [ "${ALLOW_EAC3}" -eq 1 ] && EXTRAS+=(-E "ffaac,copy" --audio-copy-mask "eac3,ac3,aac"); fi 
-  if [ "${PRESET}" ] ; then EXTRAS+=(-Z "${PRESET}"); else EXTRAS+=(-Z "AppleTV 3"); fi
-  if [ "${SPEED}" ] ; then EXTRAS+=(--encoder-preset "${SPEED}"); else EXTRAS+=(--encoder-preset "veryfast"); fi
+
+  # THE TRANSCODING PART
+  echo "Attempting to transcode ${fname} ..."  
+  height="$(${JQ_CLI} '.streams[] | select(.codec_type == "video") | .height' < "${1}_mi.json")"
+  
+  # Declare array for FFMPEG_OPTS  
+  FFMPEG_OPTS=()
+   # Add commercial markers if available
+  [ "${CHAPTERS}" -eq 1 ] && [ "${comskipped}" -eq "${1}" ] && curl -s "${CHANNELS_DB}/${1}/comskip.ffmeta" > "${1}.ffmeta" && FFMPEG_OPTS+=(-i "${1}.ffmeta" -map_metadata 1) 
+  FFMPEG_OPTS+=(-map 0:0 -c:v libx264)                                                              # Specify video stream
+  [ "$MAXSIZE" ] && [ "$MAXSIZE" -lt "$height" ] && height=${MAXSIZE} && FFMPEG_OPTS+=(-vf "scale=-1:${height}") # Limit width and height of video stream
+  [ "${QUALITY}" ] || QUALITY=21                                                                    # Set default quality level (-crf flag for x264/ffmpeg)
+  [ "${SPEED}" ] || SPEED="veryfast"                                                                # Set default speed level (-preset flag for x264/ffmpeg)
+  [ "$height" -lt 1000 ] && QUALITY=$(( QUALITY - 1 )) && [ "$height" -lt 700 ] && QUALITY=$(( QUALITY - 1 )) && [ "$height" -lt 500 ] && QUALITY=$(( QUALITY - 1 ))
+  QUALITY=$(( QUALITY > 18 ? QUALITY : 18 ))                                                        # Adjust quality sensibly   
+  FFMPEG_OPTS+=(-preset "${SPEED}" -crf "${QUALITY}" -profile:v high -level 4.0)                        # Video stream encoding options
+  FFMPEG_OPTS+=(-map 0:1 -c:a:0 aac -b:a:0 160k)                                                    # Specify first audio stream
+  FFMPEG_OPTS+=(-map 0:2 -c:a:1 copy)                                                               # Specify second audio stream 
+  FFMPEG_OPTS+=(-movflags faststart)                                                                # Optimize for streaming
   if [ "$VERBOSE" -ne 0 ] ; then
-    for arg in "${HANDBRAKE_CLI}" -i "${fname}" -o "${1}.m4v" "${EXTRAS[@]}"; do
+    for arg in "${FFMPEG_CLI}" -hide_banner -i "${fname}" "${FFMPEG_OPTS[@]}" "${1}.mp4"; do
       if [[ $arg =~ \  ]]; then arg=\"$arg\"; fi
       echo -n "$arg "
     done; echo
   fi
-
-  "${HANDBRAKE_CLI}" -i "${fname}" -o "${1}.m4v" "${EXTRAS[@]}" || ( notify_me "${bname} transcode failed." ; return 6 )
+  
+  # The actual transcoding command!  Requires Channels DVR >= 2017.04.13.0150
+  "${FFMPEG_CLI}" -hide_banner -i "${fname}" "${FFMPEG_OPTS[@]}" "${1}.m4v" || ( notify_me "${bname} transcode failed." ; return 6 )
   rm -f "${fname}" # Delete tmp input file/link  
 
-  # COMMERCIAL MARKING (optional)
-  # Instead of trimming commercials, simply mark breaks as chapters
-  [ "${comskipped}" -ne "${1}" ] && [ "${CHAPTERS}" -eq 1 ] && notify_me "${bname}: Cannot mark chapters due to lack of comskip results"
-  if [ "${CHAPTERS}" -eq 1 ] && [ "${comskipped}" -eq "${1}" ] ; then
-    curl -s "${CHANNELS_DB}/${1}/comskip.ffmeta" > "${1}.ffmeta"; ffmeta="${1}.ffmeta"
-    "${FFMPEG_CLI}" -i "${1}.m4v" -i "${ffmeta}" -map 0 -map_metadata 1 -codec copy "${1}_chap.m4v"
-    ( [ -f "${1}_chap.m4v" ] && mv -f "${1}_chap.m4v" "${1}.m4v" ) || notify_me "${bname} chapter marking failed"
-  fi
+
+  # TAG THE FILE FOR ITUNES
+  [ "${AP_CLI}" ] && ap_tagger "${1}" "${height}" || ( notify_me "Tagging of ${bname} failed")
 
 
-  # TAGGING
-  if [ "$AP_CLI" ]; then
-    # Build some tags
-    if [ "${rectype}" == "TV Show" ]; then
-      AP_OPTS=(--title "${title}" --TVShowName "${showname}" --TVEpisode "${season}${episode}" --TVEpisodeNum "$episode" --TVSeason "$season")
-      AP_OPTS+=(--genre "TV Shows" --stik "TV Show") 
-    fi
-    if [ "${rectype}" == "Movie" ]; then
-      AP_OPTS=(--title "${showname}" --genre "Movies" --stik "Movie")
-    fi
-    # Basic tags
-    AP_OPTS+=(--geID "$(${JQ_CLI} -r '.Airing.Genres[0]' < "${1}.json")")
-    AP_OPTS+=(--contentRating "$(${JQ_CLI} -r '.Airing.Raw.ratings[0].code' < "${1}.json")")
-    AP_OPTS+=(--description "$(${JQ_CLI} -r '.Airing.Raw.program.shortDescription' < "${1}.json")")
-    AP_OPTS+=(--longdesc "$(${JQ_CLI} -r '.Airing.Raw.program.longDescription' < "${1}.json")")
-    AP_OPTS+=(--year "$(${JQ_CLI} -r '.Airing.Raw.program.releaseYear' < "${1}.json")")
-    AP_OPTS+=(--cnID "$(${JQ_CLI} -r '.Airing.ProgramID' < "${1}.json" | cut -c3-)")
-    tmsID="$(${JQ_CLI} -r '.Airing.ProgramID' < "${1}.json" | cut -c1-10)"
-    show="$(${JQ_CLI} -r '.Airing.Title' < "${1}.json")"
-    #type="$(${JQ_CLI} -r '.Airing.Raw.program.entityType' < "${1}.json")"
-    #subtype="$(${JQ_CLI} -r '.Airing.Raw.program.subType' < "${1}.json")"
-   
-    # HD tags
-    #width="$(${JQ_CLI} '.streams[] | select(.codec_type == "video") | .width' < "${1}_mi.json")"
-    #height="$(${JQ_CLI} '.streams[] | select(.codec_type == "video") | .height' < "${1}_mi.json")"
-    #height=$(($MAXSIZE<$height?$MAXSIZE:$height))  # Limit to defined MAXSIZE
-    height=$("${FFMPEG_CLI}" -i "${1}.m4v" 2>&1 | grep "Stream #0:0" | perl -lane 'print $1 if /([0-9]{2,}x[0-9]+)/' | cut -dx -f2)
-    hdvideo=0 && [ "$height" -gt 700 ] && hdvideo=1 && [ "$height" -gt 1000 ] && hdvideo=2
-    [ "${hdvideo}" ] && AP_OPTS+=(--hdvideo $hdvideo)
-    
-    # Image tags
-    imageloc="$(${JQ_CLI} -r '.Airing.Image' < "${1}.json")"
-    artwork="${1}.jpg"
-    "${CURL_CLI}" -s -o "${artwork}" -O "${imageloc}"
-    [ -f "${artwork}" ] && AP_OPTS+=(--artwork "${artwork}") 
-   
-    # Network name
-    if [ "${TVDB_API}" ] && [ "${rectype}" == "TV Show" ] ; then
-      tvdb="https://api.thetvdb.com"
-      token=$("${CURL_CLI}" -s -X POST -H "Content-Type: application/json" -d '{"apikey":"'"${TVDB_API}"'"}' ${tvdb}/login | ${JQ_CLI} -r '.token')
-      tvdb_opts=(-s -X GET --header "Accept: application/json" --header "Authorization: Bearer $token") 
-      showid="$("${CURL_CLI}" "${tvdb_opts[@]}" "${tvdb}/search/series?zap2itId=${tmsID}" | ${JQ_CLI} -r '.data[0].id')"
-      if [ "$showid" == null ]; then
-        # Add a show name override here
-        showid="$("${CURL_CLI}" "${tvdb_opts[@]}" "${tvdb}/search/series?name=${show// /%20}" | ${JQ_CLI} -r '.data[0].id')"
-        network="$("${CURL_CLI}" "${tvdb_opts[@]}" "${tvdb}/search/series?name=${show// /%20})" | ${JQ_CLI} -r '.data[0].network')"
-      else
-        network=$("${CURL_CLI}" "${tvdb_opts[@]}" "${tvdb}/series?id=${showid}" | ${JQ_CLI} '.data[0].network')
-      fi
-      [ "${network}" ] && AP_OPTS+=(--TVNetwork "${network}")   
-    fi
-  
-    # Command that actually does the tagging!
-    if [ "$VERBOSE" -ne 0 ] ; then
-      for arg in "${AP_CLI}" "${1}.m4v" "${AP_OPTS[@]}"; do
-        if [[ $arg =~ \  ]]; then arg=\"$arg\"; fi
-        echo -n "$arg "
-      done; echo
-    fi
-  
-    "${AP_CLI}" "${1}.m4v" "${AP_OPTS[@]}" || ( notify_me "Tagging of ${bname} failed")
-  fi
-
+  # CLEAN UP AND DELIVER
   # Clean up some files
   [ "${DEBUG}" -ne 1 ] && rm -f "${1}.json" "${1}_mi.json" "${1}.jpg" "${1}.vdr" "${1}.ffsplit" "${1}.mpg" "${1}.ts" "${1}-temp-*.m4v"
   
   # Determine if destination directory exists on local system, and create target folder if so.
   # If not, bail. (Alternative approach to return file over GNU parallel protocol T.B.D.)
-  
   if [ "${DEST_DIR}" ] && [ -d "${DEST_DIR}" ] && mkdir -p "${tdname}" && mv -f "${1}.m4v" "${tdname}/${bname}.m4v"; then
     notify_me "${bname}.m4v delivery succeeded."
   else
@@ -531,11 +527,11 @@ fi
 ## RUN THE MAIN LOOP TO ACTIVATE TRANSCODING JOBS
 # Optionally via GNU parallel
 # To do: Only add shows to transcode database if successful, or remove them if unsuccessful
-export HANDBRAKE_CLI MP4BOX_CLI JQ_CLI FFMPEG_CLI CURL_CLI AP_CLI TSNAME \
+export MP4BOX_CLI JQ_CLI FFMPEG_CLI CURL_CLI AP_CLI TSNAME \
   PRESET SPEED EXTRAS MAXSIZE ALLOW_EAC3 \
   DEST_DIR SOURCE_DIR BACKUP_DIR CHANNELS_DB TMPDIR OVERWRITE \
-  COMTRIM CHAPTERS LANG DELETE_ORIG IFTTT_MAKER_KEY TVDB_API VERBOSE DEBUG 
-export -f showname_clean notify_me transcode
+  COMTRIM CHAPTERS LANG DELETE_ORIG IFTTT_MAKER_KEY VERBOSE DEBUG 
+export -f showname_clean notify_me transcode ap_tagger
 
 flist=""
 if [ "$PARALLEL_CLI" ]; then
@@ -550,7 +546,7 @@ if [ "$PARALLEL_CLI" ]; then
       0) echo "${i}" >> "${TRANSCODE_DB}" ;;
       1) echo "${i}" >> "${TRANSCODE_DB}" ;;
       3) echo "${i}" >> "${TRANSCODE_DB}"; flist+="${i} " ;;
-      *) flist+="${i}" ;;
+      *) flist+="${i} " ;;
     esac
   done < "${rlist}"
 else 
@@ -560,7 +556,7 @@ else
       0) echo "${i}" >> "${TRANSCODE_DB}" ;;
       1) echo "${i}" >> "${TRANSCODE_DB}" ;;
       3) echo "${i}" >> "${TRANSCODE_DB}"; flist+="${i} " ;;
-      *) flist+="${i}" ;;
+      *) flist+="${i} " ;;
     esac
   done < "${rlist}"
 fi
@@ -571,8 +567,6 @@ if [ "${flist}" ]; then
 else
   notify_me "Transcoding completed successfully"
 fi
-
-if [ -f "${CAFFEINATE_CLI}" ]; then kill -9 ${cpid} ; fi
 
 # Exit cleanly
 exit 0
