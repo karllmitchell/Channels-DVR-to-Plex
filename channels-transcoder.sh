@@ -58,7 +58,7 @@ if [ ! "$(which realpath)" ] ; then
 fi
 
 
-## INITIATION OF ARGUMENTS (LONG, TEDIOUS SECTION)
+## INITIATION OF ARGUMENTS
 # Reads initiation variables
 if [ $# -gt 0 ] ; then
   for var in "$@"; do
@@ -153,18 +153,29 @@ function ver {
 
 ### ESTABLISH PRESENCE OF API AND CLI INTERFACES
 
-# Confirm if operation via Parallel is being used and quit if it's not present.
-[ ! "${PARALLEL_CLI}" ] || [ -f "${PARALLEL_CLI}" ] || PARALLEL_CLI="$(which parallel)" || (notify_me "parallel missing"; exit 9)
-
 # Essential command line programs
 [ -f "${CURL_CLI}" ] || CURL_CLI="$(which curl)" || (notify_me "curl missing"; exit 9)
 [ -f "${JQ_CLI}" ] || JQ_CLI="$(which jq)" || (notify_me "jq missing"; exit 9)
 
+# Determine appropriate API web address
+if [ ! "${HOST}" ]; then HOST="localhost:8089"; fi
+regex="(.*):(.*)"
+if [[ "${HOST}" =~ ${regex} ]]; then HOST="${BASH_REMATCH[1]}"; PORT="${BASH_REMATCH[2]}"; else PORT=8089; fi
+DATA_DIR="$(curl -s "${HOST}/system" | jq -r '.pwd')"
+[ -d "${DATA_DIR}" ] ||  (notify_me "Cannot find API at ${HOST}"; exit 14)  # Check for presence of Channels DVR API
+[ "${VERBOSE}" -ne 0 ] && echo "Channels DVR API Interface Found"
+[ "${SOURCE_DIR}" ] || SOURCE_DIR=$(curl -s "${HOST}/dvr" | jq -r '.path')  # Read Source Directory from API
+[ ! -d "${SOURCE_DIR}" ] && SOURCE_DIR="" && [ "${VERBOSE}" -ne 0 ] && echo "Cannot read Channels source directory.  Functioning remotely via API only."
+CHANNELS_DB="http://${HOST}:${PORT}/dvr/files"
+
+# Confirm if operation via Parallel is being used and quit if it's not present.
+[ ! "${PARALLEL_CLI}" ] || [ -f "${PARALLEL_CLI}" ] || PARALLEL_CLI="$(which parallel)" || (notify_me "parallel missing"; exit 9)
+
 # Additional command-line programs for transcode function, only checked if not using remote execution with GNU parallel
 if [ ! "${PARALLEL_CLI}" ]; then
-  [ -f "${FFMPEG_CLI}" ] || FFMPEG_CLI="$(which ffmpeg)" || (notify_me "ffmpeg missing"; exit 9)
+  [ -f "${FFMPEG_CLI}" ] || FFMPEG_CLI="$(dirname "${DATA_DIR}")/latest/ffmpeg" && [ -f "${FFMPEG_CLI}" ] || (notify_me "ffmpeg missing"; exit 9)
   if [ "${AP_CLI}" ]; then
-    [ -f "${AP_CLI}" ] || AP_CLI=$(which AtomicParsley) || (notify_me "AtomicParsley missing"; exit 9)
+    [ -f "${AP_CLI}" ] || AP_CLI="$(which AtomicParsley)" || (notify_me "AtomicParsley missing"; exit 9)
     regex="(.*)version: (.*) (.*)"
     apvers=$("${AP_CLI}" | grep version)
     if [[ "${apvers}" =~ ${regex} ]]; then
@@ -177,27 +188,7 @@ fi
 
 [ "${DEBUG}" -eq 1 ] && echo "All required programs found."
    
-  
-
-## TEST FOR PRESENCE OF API INTERFACE (ESSENTIAL)
-
-# Determine appropriate API web address
-if [ ! "${HOST}" ]; then HOST="localhost:8089"; fi
-regex="(.*):(.*)"
-if [[ "${HOST}" =~ ${regex} ]]; then HOST="${BASH_REMATCH[1]}"; PORT="${BASH_REMATCH[2]}"; else PORT=8089; fi
-CHANNELS_DB="http://${HOST}:${PORT}/dvr/files"
-
-# Test for presence of API
-${CURL_CLI} -sSf "${CHANNELS_DB}" > /dev/null || (notify_me "Cannot find API at ${CHANNELS_DB}"; exit 14)
-[ "${VERBOSE}" -ne 0 ] && echo "Channels DVR API Interface Found"
-
-# Read Source Directory from API
-if [ ! "${SOURCE_DIR}" ]; then SOURCE_DIR=$(curl -s "${CHANNELS_DB}/../../dvr" | jq -r '.path'); fi
-if [ ! -d "${SOURCE_DIR}" ] ; then
-  SOURCE_DIR=""
-  [ "${VERBOSE}" -ne 0 ] && echo "Cannot read Channels source directory.  Functioning remotely via API only."
-fi
-        
+   
 
 
 ## CHECK FOR AND INITIATE TRANSCODE DATABASE IF NECESSARY
@@ -217,6 +208,7 @@ if [ ! -w "${TRANSCODE_DB}" ] ; then
   notify_me "Cannot write to ${TRANSCODE_DB}.  I give up!"
   exit 13
 fi
+
 
 # FUNCTION TO USE ATOMIC PARSLEY FOR TAGGING, ACCESSING CHANNELS_DB
 function ap_tagger {
