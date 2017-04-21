@@ -8,8 +8,13 @@ fname="channels-transcoder"
 oname="transcode-plex"
 targetdir="/usr/local/bin/"
 
+echo "If you're running this script on a machine other than the one running Channels DVR, you should specify the host here."
+echo -n "Enter the hostname and port number (leave blank for default \"localhost:8089\"), followed by [ENTER]: "
+read -r host_name       # Host for video recordings
+[ "${host_name}" ] || host_name="localhost:8089"
+  
 echo "Checking for critical pre-requisite programs:"
-echo " jq curl HandBrakeCLI ffmpeg realpath"
+echo " jq curl ffmpeg realpath"
 echo "Optional packages include:"
 echo " AtomicParsley >= 0.9.6 and parallel >= 20161222"
 echo "If they do not exist on your system, please use whichever package manager"
@@ -19,8 +24,13 @@ echo " sudo apt-get install jq curl HandBrakeCLI ffmpeg realpath"
 echo "On Mac, use homebrew, macports or fink similarly."
 
 [ ! "$(which curl)" ] && echo " curl not installed." && prfail=1 
-[ ! "$(which jq)" ] && echo " jq not installed." && prfail=1 
-[ ! "$(which ffmpeg)" ] && [ ! -f "${HOME}/channels-dvr/latest/ffmpeg" ] && echo " ffmpeg not installed." && prfail=1 
+[ ! "$(which jq)" ] && echo " jq not installed." && prfail=1
+
+datadir="$(curl -s "http://${host_name}/system" | jq -r '.pwd')"
+[ -d "${datadir}" ] || echo " Channels DVR API not present at defined host.  Is Channels DVR installed?" && prfail=1
+idir="$(dirname "$datadir")"
+
+[ ! "$(which ffmpeg)" ] && [ ! -f "${idir}/latest/ffmpeg" ] && echo " ffmpeg not installed." && prfail=1 
 if [ ! "$(which realpath)" ] && [ ! "$(alias realpath)" ] ; then
   echo " realpath not installed."
   echo "  - If you cannot find realpath, then please set up an alias in ~/.bashrc,"
@@ -65,10 +75,6 @@ if [ ! -f "${prefsdir}/prefs" ] ; then
   [ "${destination}" ] || destination="${HOME}/Movies/Plex"
   mkdir -p "${destination}" || ( echo "Destination directory unwritable.  Bailing.  Please re-run installation script." ; exit 1 )
   
-  echo "If you're running this script on a machine other than the one running Channels DVR, you should specify the host here."
-  echo -n "Enter the hostname and port number (leave blank for default \"localhost:8089\"), followed by [ENTER]: "
-  read -r host_name       # Host for video recordings
-  [ "${host_name}" ] || host_name="localhost:8089"
   
   # Install prefs file
   cat channels-transcoder.prefs | sed "/DEST_DIR*/c\DEST_DIR=\"${destination}\"" | sed "/HOST*/c\HOST=\"${host_name}\"" > "${prefsdir}/prefs"
