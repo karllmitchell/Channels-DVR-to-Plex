@@ -57,13 +57,9 @@ MAXSIZE=1080                                 # Sets resolution limit (based on h
 # It is recommended that FFMPEG_CLI points at the version distributed with Channels DVR, from April 17th, 2017 onwards.
 CURL_CLI=""                                  # Location of curl binary.  This software is required for the code to work.
 JQ_CLI=""                                    # Location of jq binary.  This software is required for the code to work.
-FFMPEG_CLI="${HOME}/channels-dvr/latest/ffmpeg"  # Location of ffmpeg binary.  Only required if COMTRIM=1.
+FFMPEG_CLI=""                                # Location of ffmpeg binary.  Only required if COMTRIM=1.
 AP_CLI=""                                    # Location of AtomicParsley binary.  Only required for iTunes file tagging.  Leave blank if not required.
                                              # >0.9.6 non-mainline AtomicParsley is required.  Recommend using fork: https://bitbucket.org/wez/atomicparsley/
-
-# Experimental/optional (marginal) improvements to iTunes file tagging can be had by using the TVDB API for lookups (experimental).
-TVDB_API=""                                  # Optional.  For assisting in file tagging (for adding TV network tag to iTunes).
-
 
 # WARNING: Most people should leave PARALLEL_CLI blank
 # GNU parallel allows you to control the number of parallel transcoding jobs or farm out to other machines (target directory should be the same)
