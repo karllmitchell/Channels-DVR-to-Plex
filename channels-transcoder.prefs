@@ -8,7 +8,7 @@
 #   e.g. transcode-plex.sh CHAPTERS=1 COMTRIM=0 DAYS=2
 
 # Information specific to your local system
-DEST_DIR="/mnt/network/Plex"                 # Desination for video recordings.  Should contain "TV Shows" and "Movies" subdirectories, or symlinks to them.
+DEST_DIR="${HOME}/Movies/Plex"               # Desination for video recordings.  Should contain "TV Shows" and "Movies" subdirectories, or symlinks to them.
 SOURCE_DIR=""                                # Channels DVR folder (see Channels web interface settings) if NFS/SMB/AFP mounted.  Leave blank if running locally.  
 HOST=""                                      # Default="localhost:8089".  To run this remotely, add e.g. HOST="channels-dvr.local". If no port, 8089 assumed.
 SOURCE_PREFS=""                              # If left blank, will scan a default list of locations; CANNOT BE SET AS COMMAND LINE OVER-RIDE! OBSOLETE.
