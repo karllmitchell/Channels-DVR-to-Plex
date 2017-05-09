@@ -105,7 +105,7 @@ I'm working on more daemon and file monitoring approaches, and would appreciate 
 
 This is a convenient way to monitor your jobs. Unfortunately IFTTT are restricting the ability to share applets at the moment, for anyone other than developers, but it's fairly easy to roll your own.
 
-You will need to set up an IFTTT account and the app installed on your phone. Then you should add the Notifications (https://ifttt.com/if_notifications) and Maker (https://ifttt.com/maker) services, before going to Maker settings (linked from https://ifttt.com/maker), copying the 22-digit code at the end of the URL under Account Settings and adding it to the IFTTT_MAKER_KEY variable in the script. Finally, you'll set up an IFTTT applet thus as per the graphic (ifttt-maker-transcode-plex.png).
+You will need to set up an IFTTT account and the app installed on your phone. Then you should add the Notifications (https://ifttt.com/if_notifications) and Maker (https://ifttt.com/maker_webhooks) services, before going to Settings setting up the latter and copying the 22-digit code at the end of the URL and adding it to the IFTTT_MAKER_KEY variable in the script. Finally, you'll set up an IFTTT Applet as per the graphic (ifttt-maker-transcode-plex.png), noting that IFTTT undergoes cosmetic details a fair amount, and so it might look a little different.
 
 **Parallelization**
 
