@@ -72,12 +72,15 @@ will only search for files created in the last 6 hours (360 minutes) and will cr
 
 An additional option for command line execution only is to specify specific recordings on the command line.  This is done without the VAR="parameter" format, and can use either a part of the filename, or the specific Channels DVR recording ID, e.g.:
 
-`channels-transcoder.sh 11 12 14`
+`channels-transcoder.sh 11 12 14 OVERWRITE=1`
+
+The OVERWRITE=1 option forces it to copy over previous versions, which by default it will not do; leave it off if you don't need it.  
+
 `channels-transcoder.sh "Sherlock"`
 
-The OVERWRITE=1 option forces it to copy over previous versions, which by default it will not do.  The numerical version is explicit, whereas the latter is a search expression on the filename, and so in this instance it would find ALL shows containing the search term Sherlock.  You can be as specific as you like with the search expression, and so the entire filename can be given to avoid ambiguity.  However, if you choose to search by directories, note that these are relative to the root of the Channels DVR database, so "Sherlock/Season 1" would work, but "DVR/TV Shows/Sherlock/Season 1" would not.  Finally, it should be noted that in both of these instances it will not check if previously transcoded in the database.
+This version is a search expression on the filename, and so in this instance it would find ALL shows containing the search term Sherlock.  You can be as specific as you like with the search expression, and so the entire filename can be given to avoid ambiguity.  However, if you choose to search by directories, note that these are relative to the root of the Channels DVR database, so "Sherlock" would work, so "channels/TV/Sherlock" wouldn't.  If you had a file in "TV/Sherlock on Masterpiece/2017-01-19-0259 Sherlock on Masterpiece 2017-01-15 S04E03 The Final Problem.mpg", "Sherlock" would find it, and possibly multiple other matches.  You could be more specific and add "Sherlock on Masterpiece 2017-01-15",  but "Sherlock on Masterpiece S04E03" would not due to search parameter being split; I hope to improve on this soon, so that you can more easily specify Show and SxxExx code, but in the meantime be careful about how you word your searches.  
 
-Given that there are limits to the number of instances (2) of channels-transcoder.sh that will run, there are circumstances under which running this manually may prevent automatic execution.
+Given that there are limits to the number of instances (2) of channels-transcoder.sh that will run, there are circumstances under which running this manually may prevent automatic execution.  Mostly this shouldn't happen, but I do not recommend trying to manually run more than one instance simultaneously.
 
 If, for whatever reason, you wish to reset your transcode database, you can always do so as per initial setup instructions, e.g. channels-transcoder.pl CLEAR_DB=1 DAYS=N.
 
@@ -92,7 +95,7 @@ For most Linux users it's probably easiest to run this as a cron job, e.g. the d
 
 This would running at 12:01am every night (by default the script will also wait internally for up to 4 hours for Channels DVR to stop recording/comskipping before starting).
 
-For Mac users, I've included a LaunchAgent file in this archive (com.getchannels.channels-transcoder.plist), typically placed into the ~/Library/LaunchAgents directory. Once it's there, run the following:
+This would work for Mac users too, but it's better to use Launch Agents.  I've included a LaunchAgent file in this archive (com.getchannels.channels-transcoder.plist), which is installed by default on Macs if you run the installation script.  It is typically placed into the ~/Library/LaunchAgents directory. Once it's there, run the following:
 
 `launchctl load ${HOME}/Library/LaunchAgents/com.getchannels.channels-transcoder.plist`
 `launchctl start com.getchannels.channels-transcoder`
