@@ -22,7 +22,7 @@ echo " AtomicParsley >= 0.9.6 and parallel >= 20161222"
 echo "If they do not exist on your system, please use whichever package manager"
 echo " works for your system to install them"
 echo "On Ubuntu/Debian Linux:"
-echo " sudo apt-get install jq curl HandBrakeCLI ffmpeg realpath"
+echo " sudo apt-get install jq curl ffmpeg realpath"
 echo "On Mac, use homebrew, macports or fink similarly."
 
 [ ! "$(which curl)" ] && echo " curl not installed." && prfail=1 
