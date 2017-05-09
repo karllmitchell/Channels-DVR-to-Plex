@@ -3,6 +3,8 @@
 # Should be safe for previous users, but check prefs folder after running, just in case
 # Run as "bash install.sh" or "chmod 700 install.sh; ./install.sh"
 
+set -e
+
 tplist="com.getchannels.channels-transcoder.plist"
 fname="channels-transcoder"
 oname="transcode-plex"
