@@ -10,7 +10,7 @@
 #  An IFTTT Maker Key for phone status notifications.
 #  FFMPEG (a part of channels DVR, but you'll need to point to it) for commercial trimming/marking
 #  Parallel (GNU software for parallel processing; Can run jobs in parallel across cores, processors or even computers if set up correctly)
-#  AtomicParsley (software for writing iTunes tags) >= 0.9.6 [Removal of older versions recommended, or it'll try to use them and fail]
+#  AtomicParsley (software for writing iTunes tags) >= 0.9.6 recommended
 # Unix prerequisites for above packages (use e.g. apt-get/macports):
 #  autoconf automake libtool pkgconfig argtable sdl coreutils curl ffmpeg realpath jq AtomicParsley
 # MAC OS: Run with launchd at /Library/LaunchAgents/com.getchannels.transcode-plex.plist.  Edit to change when it runs (default = 12:01am daily).
@@ -48,10 +48,11 @@ DIR="${BASH_SOURCE%/*}"
 DEBUG=0
 
 # realpath is a handy utility to find the path of a referenced file. 
-# It is used sparingly in this code, and only as a rarely-used backup.
-# An alias suggested for those that do have it, but it is unlikely you'll need it.
+# It is used sparingly in this code.
+# An alias suggested for those that do not have it.
 if [ ! "$(which realpath)" ] ; then
   echo "Some functionality of this software will be absent if realpath is not installed."
+  echo "Specifically, searching for files based on filename, something that most users do not use, will fail."
   echo "If you have problems, then please set up an alias in /etc/bashrc (or your system equivalent) thus:"
   echo "alias realpath='[[ \$1 = /* ]] && echo \"\$1\" || printf \"%s/\${1#./}\" \${PWD}'"
   echo "Alternatively, ensure that TRANSCODE_DB is set in prefs, and that if SOURCE_FILE used it is done so correctly."
@@ -91,9 +92,7 @@ else
   exit 1
 fi
 [ "${DEBUG}" -eq 1 ] && echo "PREFS_DIR=${PREFS_DIR}"
-
-filelist=""
-apilist="" 
+ 
 # Re-reads initation variables to over-ride any global variables set on the command line
 if [ $# -gt 0 ] ; then
   for var in "$@"; do
@@ -113,6 +112,7 @@ if [ $# -gt 0 ] ; then
   done
 fi
 
+
 ## REPORT PROGRESS, OPTIONALLY VIA PHONE NOTIFICATIONS
 # Customise if you have an alternative notification system
 function notify_me {
@@ -127,6 +127,7 @@ function notify_me {
   fi
   return 0
 }
+
 
 ## CREATE AND GO TO A TEMPORARY WORKING DIRECTORY
 cwd=$(pwd)
@@ -161,10 +162,10 @@ function ver {
 if [ ! "${HOST}" ]; then HOST="localhost:8089"; fi
 regex="(.*):(.*)"
 if [[ "${HOST}" =~ ${regex} ]]; then HOST="${BASH_REMATCH[1]}"; PORT="${BASH_REMATCH[2]}"; else PORT=8089; fi
-DATA_DIR="$(curl -s "${HOST}/system" | jq -r '.pwd')"
-[ -d "${DATA_DIR}" ] ||  (notify_me "Cannot find API at ${HOST}"; exit 14)  # Check for presence of Channels DVR API
+DATA_DIR="$(curl -s "http://${HOST}:${PORT}/system" | jq -r '.pwd')"
+[ -d "${DATA_DIR}" ] ||  (notify_me "Cannot find API at http://${HOST}:${PORT}/"; exit 14)  # Check for presence of Channels DVR API
 [ "${VERBOSE}" -ne 0 ] && echo "Channels DVR API Interface Found"
-[ "${SOURCE_DIR}" ] || SOURCE_DIR=$(curl -s "${HOST}/dvr" | jq -r '.path')  # Read Source Directory from API
+[ "${SOURCE_DIR}" ] || SOURCE_DIR=$(curl -s "http://${HOST}:${PORT}/dvr" | jq -r '.path')  # Read Source Directory from API
 [ ! -d "${SOURCE_DIR}" ] && SOURCE_DIR="" && [ "${VERBOSE}" -ne 0 ] && echo "Cannot read Channels source directory.  Functioning remotely via API only."
 CHANNELS_DB="http://${HOST}:${PORT}/dvr/files"
 
@@ -179,9 +180,9 @@ if [ ! "${PARALLEL_CLI}" ]; then
     regex="(.*)version: (.*) (.*)"
     apvers=$("${AP_CLI}" | grep version)
     if [[ "${apvers}" =~ ${regex} ]]; then
-      [ "$(ver "${BASH_REMATCH[2]}")" -lt "$(ver "0.9.6")" ] && notify_me "Old version of AtomicParsley detected.  Tagging may fail loudly.  Upgrade recommended."
+      [ "$(ver "${BASH_REMATCH[2]}")" -lt "$(ver "0.9.6")" ] && echo "Old version of AtomicParsley detected.  If tagging fails, upgrade recommended." && AP_OLD=1
     else
-      notify_me "Cannot determine version of AtomicParsley.  Tagging may fail loudly.  Upgrade recommended."
+      echo "Cannot determine version of AtomicParsley. If tagging fails, upgrade recommended."
     fi
   fi
 fi
@@ -214,16 +215,19 @@ fi
 function ap_tagger {
   # $1 is the Channels DVR ID, $2 is the output format height
   # Existence of ${1}.json and ${1}.m4v are assumed
+  # Right now this over-writes many of the tags from FFMPEG, largely for the sake of portability of the function.
   
   # TAGGING
-  subtype="$("${JQ_CLI}" -r '.Airing.EpisodeNumber' < "${1}.json")"  # Is Feature Film or part of Series?
+  subtype="$("${JQ_CLI}" -r '.Airing.Raw.program.subtype' < "${1}.json")"  # Is Feature Film or part of Series?
    
   # Build some tags
   AP_OPTS=()
 
   if [ "${subtype}" == "Series" ]; then
-    AP_OPTS+=(--genre "TV Shows" --stik "TV Show")	 
-    AP_OPTS+=(--TVShowName "$(${JQ_CLI} -r '.Airing.Title' < "${1}.json")")
+    AP_OPTS+=(--genre "TV Shows" --stik "TV Show")
+    showname="$(${JQ_CLI} -r '.Airing.Title' < "${1}.json")"
+    [ "$(type "showname_clean" | grep -s function)" ] && showname="$(showname_clean "${showname}")"
+    AP_OPTS+=(--TVShowName "${showname}")
     AP_OPTS+=(--title "$(${JQ_CLI} -r '.Airing.EpisodeTitle' < "${1}.json")")
     season="$(printf "%.02d" "$(jq -r '.Airing.SeasonNumber' < "${1}.json")")"
     episode="$(printf "%.02d" "$(jq -r '.Airing.EpisodeNumber' < "${1}.json")")"
@@ -236,14 +240,12 @@ function ap_tagger {
   
   AP_OPTS+=(--geID "$(${JQ_CLI} -r '.Airing.Genres[0]' < "${1}.json")")
   AP_OPTS+=(--contentRating "$(${JQ_CLI} -r '.Airing.Raw.ratings[0].code' < "${1}.json")")
-  AP_OPTS+=(--description "$(${JQ_CLI} -r '.Airing.Raw.program.shortDescription' < "${1}.json")")
-  AP_OPTS+=(--longdesc "$(${JQ_CLI} -r '.Airing.Raw.program.longDescription' < "${1}.json")")
   AP_OPTS+=(--year "$(${JQ_CLI} -r '.Airing.Raw.program.releaseYear' < "${1}.json")")
   AP_OPTS+=(--cnID "$(${JQ_CLI} -r '.Airing.ProgramID' < "${1}.json" | cut -c3-)")
   
-  # HD tags
+  # HD tags - deprecated as ffmpeg now handles this, allowing older version of atomicparsley to be used.
   hdvideo=0 && [ "$2" -gt 700 ] && hdvideo=1 && [ "$2" -gt 1000 ] && hdvideo=2
-  AP_OPTS+=(--hdvideo "$hdvideo")
+  [ ! ${AP_OLD} ] && AP_OPTS+=(--hdvideo "$hdvideo")
   
   # Image tags
   imageloc="$(${JQ_CLI} -r '.Airing.Image' < "${1}.json")"
@@ -276,15 +278,15 @@ function transcode {
     [ -f "${CURL_CLI}" ] || CURL_CLI="$(which curl)" || (notify_me "curl ${errtxt}"; exit 9)
     [ -f "${JQ_CLI}" ] || JQ_CLI="$(which jq)" || (notify_me "jq ${errtxt}"; exit 9)
     [ -f "${FFMPEG_CLI}" ] || FFMPEG_CLI="$(which ffmpeg)" || (notify_me "ffmpeg ${errtxt}"; exit 9)
-    [ "${AP_CLI}" ] || [ -f "${AP_CLI}" ] || AP_CLI="$(which AtomicParsley)" || (notify_me "AtomicParsley ${errtxt}"; exit 9)
     if [ "${AP_CLI}" ]; then
-      [ -f "${AP_CLI}" ] || AP_CLI=$(which AtomicParsley) || (notify_me "AtomicParsley missing"; exit 9)
+      [ -f "${AP_CLI}" ] || AP_CLI=$(which AtomicParsley) || (notify_me "AtomicParsley ${errtxt}"; exit 9)
       regex="(.*)version: (.*) (.*)"
       apvers=$("${AP_CLI}" | grep version)
       if [[ "${apvers}" =~ ${regex} ]]; then
-        [ "$(ver "${BASH_REMATCH[2]}")" -lt "$(ver "0.9.6")" ] && notify_me "Old version of AtomicParsley detected.  Tagging may fail loudly.  Upgrade recommended."
+        [ "$(ver "${BASH_REMATCH[2]}")" -lt "$(ver "0.9.6")" ] && notify_me "Old version of AtomicParsley detected. If tagging fails, upgrade recommended."
+	exit 9
       else
-        notify_me "Cannot determine version of AtomicParsley.  Tagging may fail loudly.  Upgrade recommended."
+        notify_me "Cannot determine version of AtomicParsley. If tagging fails, upgrade recommended"
       fi
     fi
   fi
@@ -373,20 +375,55 @@ function transcode {
 
 
   # THE TRANSCODING PART
-  echo "Attempting to transcode ${fname} ..."  
-  height="$(${JQ_CLI} '.streams[] | select(.codec_type == "video") | .height' < "${1}_mi.json")"
+  echo "Attempting to transcode ${fname} ..." 
   
-  # Declare array for FFMPEG_OPTS  
-  FFMPEG_OPTS=()
-   # Add commercial markers if available
-  [ "${CHAPTERS}" -eq 1 ] && [ "${comskipped}" -eq "${1}" ] && curl -s "${CHANNELS_DB}/${1}/comskip.ffmeta" > "${1}.ffmeta" && FFMPEG_OPTS+=(-i "${1}.ffmeta" -map_metadata 1) 
+  # Determine output video size 
+  height="$(${JQ_CLI} '.streams[] | select(.codec_type == "video") | .height' < "${1}_mi.json")"
+  ht=$(( height < MAXSIZE ? height : MAXSIZE ))
+  hdvideo=0 && [ "$ht" -gt 700 ] && hdvideo=1 && [ "$ht" -gt 1000 ] && hdvideo=2
+  
+  # Tag with metadata
+  echo ";FFMETADATA1" > "${1}.ffmeta"
+  echo hd_video=${hdvideo} >> "${1}.ffmeta"
+  if [ "${rectype}" == "Movie" ]; then
+    echo media_type=9 >> "${1}.ffmeta"
+    echo title=${showname} >> "${1}.ffmeta"
+    echo date=${year} >> "${1}.ffmeta"
+  fi
+  if [ "${rectype}" == "TV Show" ]; then
+    echo media_type=10 >> "${1}.ffmeta"
+    echo title=${title} >> "${1}.ffmeta"
+    echo show=${showname} >> "${1}.ffmeta"
+    echo episode_id=${episode} >> "${1}.ffmeta"
+    echo season_number=${season} >> "${1}.ffmeta"
+    channel="$(${JQ_CLI} -r '.Airing.Channel' < "${1}.json")"
+    network="$("${CURL_CLI}" -s "${CHANNELS_DB}/../guide/channels" | "${JQ_CLI}" -r '.[] | select(.Number=="'"$channel"'") | .Name')" 
+    echo network=${network} >> "${1}.ffmeta"
+  fi
+  echo comment="$(${JQ_CLI} -r '.Airing.Raw.program.shortDescription' < "${1}.json")" >> "${1}.ffmeta"
+  echo synopsis="$(${JQ_CLI} -r '.Airing.Raw.program.longDescription' < "${1}.json")" >> "${1}.ffmeta"
+
+  # Add commercial markers if available
+  [ "${CHAPTERS}" -eq 1 ] && [ "${comskipped}" -eq "${1}" ] && curl -s "${CHANNELS_DB}/${1}/comskip.ffmeta" | grep -v FFMETADATA >> "${1}.ffmeta"
+  FFMPEG_OPTS+=(-i "${1}.ffmeta" -map_metadata 1)
+  
+  # Add album artwork if available: placeholder, as feature is currently unsupported by ffmpeg, although is a requested feature)
+  # For now, you'll need AtomicParsley for this.
+  
+  #"${CURL_CLI}" -o ${1}.jpg "$(${JQ_CLI} -r '.Airing.Image' < "${1}.json")"
+  #[ -s "${1}.ffmeta" ] 
+  #[ -s "${1}.jpg" ] && FFMPEG_OPTS+=(-i "${1}.jpg" )
+  
+  # Video stream
   FFMPEG_OPTS+=(-map 0:0 -c:v libx264)                                                              # Specify video stream
   [ "$MAXSIZE" ] && [ "$MAXSIZE" -lt "$height" ] && height=${MAXSIZE} && FFMPEG_OPTS+=(-vf "scale=-1:${height}") # Limit width and height of video stream
   [ "${QUALITY}" ] || QUALITY=21                                                                    # Set default quality level (-crf flag for x264/ffmpeg)
   [ "${SPEED}" ] || SPEED="veryfast"                                                                # Set default speed level (-preset flag for x264/ffmpeg)
   [ "$height" -lt 1000 ] && QUALITY=$(( QUALITY - 1 )) && [ "$height" -lt 700 ] && QUALITY=$(( QUALITY - 1 )) && [ "$height" -lt 500 ] && QUALITY=$(( QUALITY - 1 ))
   QUALITY=$(( QUALITY > 18 ? QUALITY : 18 ))                                                        # Adjust quality sensibly   
-  FFMPEG_OPTS+=(-preset "${SPEED}" -crf "${QUALITY}" -profile:v high -level 4.0)                        # Video stream encoding options
+  FFMPEG_OPTS+=(-preset "${SPEED}" -crf "${QUALITY}" -profile:v high -level 4.0)                    # Video stream encoding options
+  
+  # Audio streams
   FFMPEG_OPTS+=(-map 0:1 -c:a:0 aac -b:a:0 160k)                                                    # Specify first audio stream
   FFMPEG_OPTS+=(-map 0:2 -c:a:1 copy)                                                               # Specify second audio stream 
   FFMPEG_OPTS+=(-movflags faststart)                                                                # Optimize for streaming
@@ -403,7 +440,8 @@ function transcode {
 
 
   # TAG THE FILE FOR ITUNES
-  [ "${AP_CLI}" ] && ap_tagger "${1}" "${height}" || ( notify_me "Tagging of ${bname} failed")
+  # This adds episode artwork, content rating, production date and a fake cnID tag which effectively enables production of SD-HD files if desired
+  [ -f "${1}.m4v" ] && [ "${AP_CLI}" ] && ap_tagger "${1}" "${height}" || ( notify_me "Tagging of ${bname} failed")
 
 
   # CLEAN UP AND DELIVER
@@ -450,7 +488,6 @@ if [ "${BUSY_WAIT}" -eq 1 ] && ( [ "${channels_busy}" == true ] || [ "${transcod
     channels_busy="$(curl -s "${CHANNELS_DB}/../../dvr" | jq '.busy')"     # Check if Channels DVR is busy
     transcode_jobs="$(pgrep -fa "/bin/bash channels-transcoder.sh" | grep -vw $$ | grep -c bash)"   # Check for other transcoding jobs
   done
-  
 fi
 
 # Search through temporary directory to find and clean up any stalled jobs from GNU parallel
@@ -522,10 +559,9 @@ fi
 export MP4BOX_CLI JQ_CLI FFMPEG_CLI CURL_CLI AP_CLI TSNAME \
   PRESET SPEED EXTRAS MAXSIZE ALLOW_EAC3 \
   DEST_DIR SOURCE_DIR BACKUP_DIR CHANNELS_DB TMPDIR OVERWRITE \
-  COMTRIM CHAPTERS LANG DELETE_ORIG IFTTT_MAKER_KEY VERBOSE DEBUG 
+  COMTRIM CHAPTERS LANG DELETE_ORIG IFTTT_MAKER_KEY VERBOSE DEBUG AP_OLD
 export -f showname_clean notify_me transcode ap_tagger
 
-flist=""
 if [ "$PARALLEL_CLI" ]; then
   if [ "$COMTRIM" == 1 ]; then PARALLEL_OPTS+=(--delay 120); fi
   PARALLEL_OPTS+=(--joblog "progress.txt" --results progress --progress)
@@ -552,7 +588,6 @@ else
     esac
   done < "${rlist}"
 fi
-
 
 if [ "${flist}" ]; then
   notify_me "Transcoding complete.  There were issues with: ${flist}.  See log file for more details."
