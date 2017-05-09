@@ -34,12 +34,12 @@ idir="$(dirname "$datadir")"
 
 [ ! "$(which ffmpeg)" ] && [ ! -f "${idir}/latest/ffmpeg" ] && echo " ffmpeg not installed." && prfail=1 
 if [ ! "$(which realpath)" ] && [ ! "$(alias realpath)" ] ; then
-  echo " realpath not installed."
-  echo "  - If you cannot find realpath, then please set up an alias in ~/.bashrc,"
-  echo "    ~/.profile (or your system equivalent) and relog to activate, thus:"
-  echo "     alias realpath='[[ \$1 = /* ]] && echo \"\$1\" || printf \"%s/\${1#./}\" \${PWD}'"
-  prfail=1 
+  echo alias realpath=\'[[ \$1 = /\* ]] \&\& echo \"\$1\" \|\| printf \"%s/\${1#./}\" \${PWD}\' >> ~/.profile
+  echo " Realpath is not installed, and so an alias has been added to your ~/.profile that should work sufficiently."
+  echo " A better solution would be to download and install realpath, and then remove the alias from your ~/.profile"
+  echo " Note, however, that realpath may not be available on Macs, in which case this alias is your best solution."
 fi
+
 [ "${prfail}" -eq 1 ] && [ "$1" != "force" ] && echo "Some pre-requisites not installed." && echo "Please try again or use \"bash install.sh force\" then edit your prefs file manually" && exit 1
 
 
