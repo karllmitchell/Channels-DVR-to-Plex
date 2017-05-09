@@ -30,7 +30,7 @@ Although the code will run on extremely underpowered systems, including low cost
 
 On this first run (or install script), the code will initialise a database that lists previously transcoded recordings. Note that it will by default not transcode any previously recorded shows unless you respond to the DAYS prompt when asked (install script), or you run from the command-line with these options:
 
-channels-transcoder.sh CLEAR_DB=1 DAYS=N
+`channels-transcoder.sh CLEAR_DB=1 DAYS=N`
 
 where N is the number of days backlog you want clearing (so e.g. DAYS=7).  This will reset the database and mark all previously recorded shows (before N days ago) as having already been transcoded.  This may take a long time, depending on your system and how much stuff you have.  DO NOT run transcode-plex.sh again until this is complete.  The install script will handle most of this for you.
 
