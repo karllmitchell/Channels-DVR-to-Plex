@@ -22,7 +22,7 @@ echo " AtomicParsley >= 0.9.6 and parallel >= 20161222"
 echo "If they do not exist on your system, please use whichever package manager"
 echo " works for your system to install them"
 echo "On Ubuntu/Debian Linux:"
-echo " sudo apt-get install jq curl ffmpeg realpath"
+echo " sudo apt-get install jq curl ffmpeg realpath wget"
 echo "On Mac, use homebrew, macports or fink similarly."
 
 [ ! "$(which curl)" ] && echo " curl not installed." && prfail=1 
@@ -33,6 +33,10 @@ datadir="$(curl -s "http://${host_name}/system" | jq -r '.pwd')"
 idir="$(dirname "$datadir")"
 
 [ ! "$(which ffmpeg)" ] && [ ! -f "${idir}/latest/ffmpeg" ] && echo " ffmpeg not installed." && prfail=1 
+[ ! "$(which wget)" ] && echo " wget not installed." && prfail=1 
+[ ! "$(which jq)" ] && echo " wget not installed." && prfail=1 
+[ ! "$(which curl)" ] && echo " wget not installed." && prfail=1 
+
 if [ ! "$(which realpath)" ] && [ ! "$(alias realpath)" ] ; then
   echo alias realpath=\'[[ \$1 = /\* ]] \&\& echo \"\$1\" \|\| printf \"%s/\${1#./}\" \${PWD}\' >> ~/.profile
   echo " Realpath is not installed, and so an alias has been added to your ~/.profile that should work sufficiently."
@@ -40,7 +44,7 @@ if [ ! "$(which realpath)" ] && [ ! "$(alias realpath)" ] ; then
   echo " Note, however, that realpath may not be available on Macs, in which case this alias is your best solution."
 fi
 
-[ "${prfail}" -eq 1 ] && [ "$1" != "force" ] && echo "Some pre-requisites not installed." && echo "Please try again or use \"bash install.sh force\" then edit your prefs file manually" && exit 1
+[ "${prfail}" -eq 1 ] && [ "$1" != "force" ] && echo "Some pre-requisites not installed." && echo "Please try again or use \"bash install.sh force\" to proceed regardless, then edit your prefs file manually" && echo "You will need wget regardless for this install script to work" && exit 1
 
 
 # Download archive, unzip and change directories
