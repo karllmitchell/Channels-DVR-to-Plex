@@ -16,7 +16,7 @@ read -r host_name       # Host for video recordings
 [ "${host_name}" ] || host_name="localhost:8089"
   
 echo "Checking for critical pre-requisite programs:"
-echo " jq curl ffmpeg realpath"
+echo " jq curl ffmpeg realpath wget"
 echo "Optional packages include:"
 echo " AtomicParsley >= 0.9.6 and parallel >= 20161222"
 echo "If they do not exist on your system, please use whichever package manager"
