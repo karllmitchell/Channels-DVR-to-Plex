@@ -6,7 +6,7 @@ Please note that this has not been thoroughly tested on all systems, and that it
 
 Ideally this should be installed using the *install.sh* script, thus:
 
-curl https://raw.githubusercontent.com/karllmitchell/Channels-DVR-to-Plex/master/install.sh > install.sh;  bash install.sh
+`curl https://raw.githubusercontent.com/karllmitchell/Channels-DVR-to-Plex/master/install.sh > install.sh;  bash install.sh`
 
 Do NOT pipe to bash, or use any other type of shell, or it will fail.
 
@@ -60,20 +60,20 @@ Finally, some "bonus" feature described below utilize IFTTT for phone notificati
 
 All of the default options within the script can be substituted for on the command line. In its most basic mode, simply run:
 
-channels-transcoder.sh
+`channels-transcoder.sh`
 
 from the command line and it will scan the source directory (the "TV" folder where Channels DVR stores its recordings).
 
 If you would like to overload any of the options above, simply add them as arguments, e.g.
 
-channels-transcoder.sh DAYS=1 MAXSIZE=540 COMTRIM=1
+`channels-transcoder.sh DAYS=1 MAXSIZE=540 COMTRIM=1`
 
 will only search for files created in the last 6 hours (360 minutes) and will create smaller 540p files with commercials trimmed. Note that it will not transcode previously finished shows until you re=initate your database (CLEAR_DB=1). Also, it should be noted that the arguments are case-sensitive.
 
 An additional option for command line execution only is to specify specific recordings on the command line.  This is done without the VAR="parameter" format, and can use either a part of the filename, or the specific Channels DVR recording ID, e.g.:
 
-channels-transcoder.sh 11 12 14
-channels-transcoder.sh "Sherlock"
+`channels-transcoder.sh 11 12 14`
+`channels-transcoder.sh "Sherlock"`
 
 The OVERWRITE=1 option forces it to copy over previous versions, which by default it will not do.  The numerical version is explicit, whereas the latter is a search expression on the filename, and so in this instance it would find ALL shows containing the search term Sherlock.  You can be as specific as you like with the search expression, and so the entire filename can be given to avoid ambiguity.  However, if you choose to search by directories, note that these are relative to the root of the Channels DVR database, so "Sherlock/Season 1" would work, but "DVR/TV Shows/Sherlock/Season 1" would not.  Finally, it should be noted that in both of these instances it will not check if previously transcoded in the database.
 
@@ -88,14 +88,14 @@ This should be set up for users that run the install script.
 
 For most Linux users it's probably easiest to run this as a cron job, e.g. the default:
 
-1 0 * * * /usr/local/bin/channels-transcoder.sh >> ~/.channels-transcoder/log
+`1 0 * * * /usr/local/bin/channels-transcoder.sh >> ~/.channels-transcoder/log`
 
 This would running at 12:01am every night (by default the script will also wait internally for up to 4 hours for Channels DVR to stop recording/comskipping before starting).
 
 For Mac users, I've included a LaunchAgent file in this archive (com.getchannels.channels-transcoder.plist), typically placed into the ~/Library/LaunchAgents directory. Once it's there, run the following:
 
-launchctl load ${HOME}/Library/LaunchAgents/com.getchannels.channels-transcoder.plist
-launchctl start com.getchannels.channels-transcoder
+`launchctl load ${HOME}/Library/LaunchAgents/com.getchannels.channels-transcoder.plist`
+`launchctl start com.getchannels.channels-transcoder`
 
 The log file is also in the prefs director, and so can be monitored easily (e.g. tail -f ~/.channels-transcoder/log).
 
