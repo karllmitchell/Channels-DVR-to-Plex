@@ -3,21 +3,23 @@
 # Converts Channels DVR recordings to m4v (h.264) format, for Plex, Kodi, iTunes & iOS m4v
 # This script is primarily intended to be run occasionally (e.g. daily), e.g. using launchd or cron job, during quiet time
 # It can also be run on specific recordings, can be used locally or remotely to Channels DVR computer, and can distribute jobs remotely, as required.
+# An installation script is provided on the GitHub site to automate most of the setup described below.
 # Pre-requisites:
 #  Curl (for accessing web resources)
 #  jq (for processing JSON databases)
+#  realpath (note that this is not available on the Mac, in which case the install script will add an alias to simulate it)
 # Optional pre-requisites:
 #  An IFTTT Maker Key for phone status notifications.
-#  FFMPEG (a part of channels DVR, but you'll need to point to it) for commercial trimming/marking
+#  FFMPEG (a part of channels DVR, so you already have a copy, but you can use your own if you like) for commercial trimming/marking
 #  Parallel (GNU software for parallel processing; Can run jobs in parallel across cores, processors or even computers if set up correctly)
 #  AtomicParsley (software for writing iTunes tags) >= 0.9.6 recommended
-# Unix prerequisites for above packages (use e.g. apt-get/macports):
+# Unix prerequisites for above packages (use e.g. apt-get/macports), in case you're compiling manually:
 #  autoconf automake libtool pkgconfig argtable sdl coreutils curl ffmpeg realpath jq AtomicParsley
-# MAC OS: Run with launchd at /Library/LaunchAgents/com.getchannels.transcode-plex.plist.  Edit to change when it runs (default = 12:01am daily).
+# MAC OS: Run with launchd at ~/Library/LaunchAgents/com.getchannels.transcode-plex.plist.  Edit to change when it runs (default = 12:01am daily).
 #  Once in place and readable, run
-#   sudo launchctl load /Library/LaunchAgents/com.getchannels.transcode-plex.plist
+#   sudo launchctl load ${HOME}/Library/LaunchAgents/com.getchannels.transcode-plex.plist
 #   sudo launchctl start com.getchannels.transcode-plex
-#   chmod 644 /Library/LaunchAgents/com.getchannels.transcode-plex.plist
+#   chmod 644 ~/Library/LaunchAgents/com.getchannels.transcode-plex.plist
 #  If your computer sleeps, be sure to set something to wake it up on time.
 # LINUX: Run as a cron or service, e.g. "EDITOR=nedit crontab -e" then add line 1 12 * * * nice /usr/local/bin/channels-transcoder.sh
 # Edit default settings below.  These may all be over-ridden from the command line, e.g. channels-transcoder.sh CHAPTERS=1 COMTRIM=0 DAYS=2
@@ -52,10 +54,11 @@ DEBUG=0
 # An alias suggested for those that do not have it.
 if [ ! "$(which realpath)" ] ; then
   echo "Some functionality of this software will be absent if realpath is not installed."
+  echo "On most systems this can be installed as part of the coreutils package"
   echo "Specifically, searching for files based on filename, something that most users do not use, will fail."
-  echo "If you have problems, then please set up an alias in /etc/bashrc (or your system equivalent) thus:"
+  echo "If you have problems, then please set up an alias in ~/.bashrc, ~/.profile (or your system equivalent) thus:"
   echo "alias realpath='[[ \$1 = /* ]] && echo \"\$1\" || printf \"%s/\${1#./}\" \${PWD}'"
-  echo "Alternatively, ensure that TRANSCODE_DB is set in prefs, and that if SOURCE_FILE used it is done so correctly."
+  echo "Alternatively, ensure that TRANSCODE_DB is set in prefs, and do not run channels-transcoder.sh and search based on filenames."
 fi
 
 
@@ -75,25 +78,23 @@ if [[ ! -d "$DIR" ]]; then DIR="$PWD"; fi
 
 # Finds preferences file, sources it, then sets preferences directory
 if [ ! "${SOURCE_PREFS}" ]; then
-  for i in "${HOME}/.${BN}/prefs" "${HOME}/.transcode-plex/prefs" \
-    "${HOME}/Library/Application Support/${BN}/prefs" "${HOME}/Library/Application Support/transcode-plex/prefs" ; do
+  for i in "${HOME}/Library/Application Support/${BN}/prefs" "${HOME}/.${BN}/prefs" "${HOME}/.transcode-plex/prefs" \
+    "${HOME}/Library/Application Support/transcode-plex/prefs" ; do
     if [ -f "${i}" ]; then SOURCE_PREFS="${i}"; break ; fi
   done
 fi
 
 if [ "${SOURCE_PREFS}" ]; then
   # spellcheck source=/dev/null
-  PREFS_DIR="$(dirname "${SOURCE_PREFS}")"
-  PREFS_DIR="$(realpath "${PREFS_DIR}")"
+  [ "${TRANSCODE_DB}" ] || TRANSCODE_DB="$(realpath "$(dirname channels-transcoder.sh)")"/transcode.db  
   [ "$DEBUG" -eq 1 ] && echo "SOURCE_PREFS=${SOURCE_PREFS}"
   source "${SOURCE_PREFS}" || ( echo "Couldn't read SOURCE_PREFS=${SOURCE_PREFS}."; exit 1 )
 else
   echo "Cannot find preferences file.  Example at: https://github.com/karllmitchell/Channels-DVR-to-Plex/"
   exit 1
 fi
-[ "${DEBUG}" -eq 1 ] && echo "PREFS_DIR=${PREFS_DIR}"
- 
-# Re-reads initation variables to over-ride any global variables set on the command line
+
+ # Re-reads initation variables to over-ride any global variables set on the command line
 if [ $# -gt 0 ] ; then
   for var in "$@"; do
     regex="(.*)=(.*)"
@@ -112,6 +113,7 @@ if [ $# -gt 0 ] ; then
   done
 fi
 
+[ "${DEBUG}" -eq 1 ] && echo "TRANSCODE_DB=${TRANSCODE_DB}"
 
 ## REPORT PROGRESS, OPTIONALLY VIA PHONE NOTIFICATIONS
 # Customise if you have an alternative notification system
@@ -189,21 +191,15 @@ fi
 
 [ "${DEBUG}" -eq 1 ] && echo "All required programs found."
    
-   
 
 
 ## CHECK FOR AND INITIATE TRANSCODE DATABASE IF NECESSARY
-[ "${TRANSCODE_DB}" ] || TRANSCODE_DB="${PREFS_DIR}/transcode.db"
 if [ ! -f "${TRANSCODE_DB}" ] || [ "${CLEAR_DB}" -eq 1 ] ; then
   [ "${DAYS}" ] || DAYS=0
-  if [ ! -w "${TRANSCODE_DB}" ] ; then
-    notify_me "Cannot write to ${TRANSCODE_DB}, using ${HOME}/.${BN}/transcode.db instead"
-    TRANSCODE_DB="${HOME}/.${BN}/transcode.db"
-  fi 
   if [ "$(uname)" == "Darwin" ]; then since=$(date -v-${DAYS}d +%FT%H:%M); else since=$(date -d "$(date) - ${DAYS} days" +%FT%H:%M); fi
-  [ "${DEBUG}" -eq 1 ] && echo "Initiating database with recordings up to ${since}.  Using ${CURL_CLI} and ${JQ_CLI}."
+  [ "${DEBUG}" -eq 1 ] && echo "(Re-)initialising database with recordings up to ${since}.  Using ${CURL_CLI} and ${JQ_CLI}."
   "${CURL_CLI}" -s "${CHANNELS_DB}" | "${JQ_CLI}" -r '.[] | select ((.Airing.Raw.endTime < "'"$since"'")) | {ID} | join(" ") ' > "${TRANSCODE_DB}"
-  notify_me "Transcode database initialised at ${TRANSCODE_DB}"
+  notify_me "Transcode database (re-)initialised at ${TRANSCODE_DB}"
 fi
 if [ ! -w "${TRANSCODE_DB}" ] ; then
   notify_me "Cannot write to ${TRANSCODE_DB}.  I give up!"
