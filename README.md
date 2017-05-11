@@ -4,15 +4,15 @@ Channels DVR (https://community.getchannels.com/dvr/) is an extremely user frien
 
 Please note that this has not been thoroughly tested on all systems, and that it is to be used at your own risk. It has so far been tested on (at least) Ubuntu 16.04 Xenial (arm64) and Mac OS Sierra 10.12 (intel x86-64).  This is sub-beta quality right now!  Feel free to take it and make it your own, or contribute to this archive, as long as you share your work and operate within the license.
 
-Ideally this should be installed using the *install.sh* script, thus:
+Pre-requisites on unix systems (including Mac) are working versions of Channels DVR and Plex Media Server, as well as the following utilities: jq, curl, coreutils, AtomicParsley (optional, preferably >= 0.9.6) and GNU parallel (>= 20161222).  These can be installed e.g. `apt-get install jq curl coreutils atomicparsley parallel` on Debian/Ubuntu Linux.  On a Mac, install the homebrew software first (http://brew.sh/), then run `brew install jq curl coreutils atomicparsley parallel`.  Be sure to check version numbers installed against requirements, which may change over time. 
+
+The Channels-DVR-to-Plex software can be installed using the *install.sh* script, thus:
 
 `curl https://raw.githubusercontent.com/karllmitchell/Channels-DVR-to-Plex/master/install.sh > install.sh;  bash install.sh`
 
-Do NOT pipe to bash, or use any other type of shell, or it will fail.
+Do NOT pipe to bash, or use any other type of shell, or it will fail.  Note that this can also be used to update existing configurations.
 
-Note that this can also be used to update existing configurations.
-
-Consider carefully the question about number of days backlog to transcode, as this can take a long time. DAYS=0 is pretty safe, and you can always transcode missed shows later from the command line.
+When running the install script, consider carefully the question about number of days backlog to transcode, as this can take a long time. DAYS=0 is pretty safe, and you can always transcode missed shows later from the command line.
 
 The final step is that you'll need to go to your Plex web interface and add the TV Shows and Movies folder within your desination directory to your Plex library.  By default these are "${HOME}/Movies/Plex/TV Shows" and "${HOME}/Movies/Plex/Movies".
 
@@ -20,7 +20,7 @@ For 90% of you, and the TL;DR crowd, that's probably enough to get you going.
 
 **The main script**
 
-*channels-transcoder.sh* requires bash, and is designed primarily to run as a nightly job, preferably after all commercial scanning is over (12:01 AM by default), although it can be run from the command line too.  It can be installed either on the same machine as runs Channels DVR, or on another machine as long as you set the HOST variable; Note that it will copy files across the network in this latter mode.  The advantage of this is that you can run a very low powered machine (ARM board or NAS) for the recording, and then use another higher-powered machine for the transcoding, potentially letting it sleep most of the time. By default it lives in /usr/local/bin.
+*channels-transcoder.sh* requires bash, and is designed primarily to run as a nightly job, preferably after all commercial scanning is over (12:01 AM by default), although it has additional functionality when run via the command line too.  It can be installed either on the same machine as runs Channels DVR, or on another machine as long as you set the HOST variable; Note that it will copy files across the network in this latter mode.  The advantage of this is that you can run a very low powered machine (ARM board or NAS) for the recording, and then use another higher-powered machine for the transcoding, potentially letting it sleep most of the time. By default it lives in /usr/local/bin.
 
 At the core of the script is ffmpeg, which performs the transcoding via libx264; The same script that performs transcoding from the web interface of Channels DVR. By default I have it set up to produce high quality full resolution outputs that look good on a full HDTV with Apple TV, which also runs on most devices that are capable of 1080p playback.  Both closed captions and sound are preserved from the original MPEG, and if surround sound exists then a stereo track is added for more universal compatibility.  However, unfortunately Plex at the moment does not support the ability to play back these closed captions, something I'm hoping to fix eventually.
 
@@ -28,7 +28,7 @@ Although the code will run on extremely underpowered systems, including low cost
 
 **Set up, first run and the transcode database**
 
-On this first run (or install script), the code will initialise a database that lists previously transcoded recordings. Note that it will by default not transcode any previously recorded shows unless you respond to the DAYS prompt when asked (install script), or you run from the command-line with these options:
+On this first run (or install script), the code will initialise a database that lists previously transcoded recordings. Note that it will by default not transcode any previously recorded shows unless you respond to the DAYS prompt when asked (install script).  You can reset this database using the command-line with these options:
 
 `channels-transcoder.sh CLEAR_DB=1 DAYS=N`
 
@@ -74,7 +74,7 @@ An additional option for command line execution only is to specify specific reco
 
 `channels-transcoder.sh 11 12 14 OVERWRITE=1`
 
-The OVERWRITE=1 option forces it to copy over previous versions, which by default it will not do; leave it off if you don't need it.  
+Recordings specified in this manner will be transcoded regardless of whether there is a record of a previous transcoding in transcode.db, but by default they will not overwrite anything in the Plex file structure.  The OVERWRITE=1 option forces it to copy over previous versions; leave it off if you don't need it.  
 
 `channels-transcoder.sh "Sherlock"`
 
