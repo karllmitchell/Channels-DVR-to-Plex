@@ -16,13 +16,13 @@ read -r host_name       # Host for video recordings
 [ "${host_name}" ] || host_name="localhost:8089"
   
 echo "Checking for critical pre-requisite programs:"
-echo " jq curl ffmpeg realpath wget"
+echo " jq curl ffmpeg coreutils wget"
 echo "Optional packages include:"
-echo " AtomicParsley >= 0.9.6 and parallel >= 20161222"
+echo " AtomicParsley (preferably >= 0.9.6) and parallel >= 20161222"
 echo "If they do not exist on your system, please use whichever package manager"
 echo " works for your system to install them"
 echo "On Ubuntu/Debian Linux:"
-echo " sudo apt-get install jq curl ffmpeg realpath wget"
+echo " sudo apt-get install jq curl ffmpeg coreutils wget"
 echo "On Mac, use homebrew, macports or fink similarly."
 
 [ ! "$(which curl)" ] && echo " curl not installed." && prfail=1 
@@ -34,15 +34,9 @@ idir="$(dirname "$datadir")"
 
 [ ! "$(which ffmpeg)" ] && [ ! -f "${idir}/latest/ffmpeg" ] && echo " ffmpeg not installed." && prfail=1 
 [ ! "$(which wget)" ] && echo " wget not installed." && prfail=1 
-[ ! "$(which jq)" ] && echo " wget not installed." && prfail=1 
-[ ! "$(which curl)" ] && echo " wget not installed." && prfail=1 
-
-if [ ! "$(which realpath)" ] && [ ! "$(alias realpath)" ] ; then
-  echo alias realpath=\'[[ \$1 = /\* ]] \&\& echo \"\$1\" \|\| printf \"%s/\${1#./}\" \${PWD}\' >> ~/.profile
-  echo " Realpath is not installed, and so an alias has been added to your ~/.profile that should work sufficiently."
-  echo " A better solution would be to download and install realpath, and then remove the alias from your ~/.profile"
-  echo " Note, however, that realpath may not be available on Macs, in which case this alias is your best solution."
-fi
+[ ! "$(which jq)" ] && echo " jq not installed." && prfail=1 
+[ ! "$(which curl)" ] && echo " curl not installed." && prfail=1 
+[ ! "$(which realpath)" ] && echo " realpath, part of coreutils (a new requirement), not installed." && prfail=1
 
 [ "${prfail}" -eq 1 ] && [ "$1" != "force" ] && echo "Some pre-requisites not installed." && echo "Please try again or use \"bash install.sh force\" to proceed regardless, then edit your prefs file manually" && echo "You will need wget regardless for this install script to work" && exit 1
 
@@ -110,7 +104,7 @@ echo
 # Transcode backlog if no transcode.db found
 if [ -f "${prefsdir}/transcode.db" ]; then
   echo "Existing transcode.db detected.  If you would like to clear a backlog, enter the number of days below."
-  echo "If show was previously transcoded and is listed in transcode.db, transcode will be prevented unless you delete ${prefsdir}/transcode.db first."
+  echo "If show was previously transcoded and is listed in transcode.db, transcode will not transcode that show unless you delete ${prefsdir}/transcode.db first."
 else
   echo "No existing transcode.db detected.  This will now be initiated."
   echo "If you would like to transcode previously transcoded shows, please pick a number of days worth of backlog to transcode, e.g. 1000"
