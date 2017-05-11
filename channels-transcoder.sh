@@ -7,14 +7,14 @@
 # Pre-requisites:
 #  Curl (for accessing web resources)
 #  jq (for processing JSON databases)
-#  realpath (note that this is not available on the Mac, in which case the install script will add an alias to simulate it)
+#  realpath (part of coreutils)
 # Optional pre-requisites:
 #  An IFTTT Maker Key for phone status notifications.
 #  FFMPEG (a part of channels DVR, so you already have a copy, but you can use your own if you like) for commercial trimming/marking
 #  Parallel (GNU software for parallel processing; Can run jobs in parallel across cores, processors or even computers if set up correctly)
 #  AtomicParsley (software for writing iTunes tags) >= 0.9.6 recommended
 # Unix prerequisites for above packages (use e.g. apt-get/macports), in case you're compiling manually:
-#  autoconf automake libtool pkgconfig argtable sdl coreutils curl ffmpeg realpath jq AtomicParsley
+#  autoconf automake libtool pkgconfig argtable sdl coreutils curl jq AtomicParsley
 # MAC OS: Run with launchd at ~/Library/LaunchAgents/com.getchannels.transcode-plex.plist.  Edit to change when it runs (default = 12:01am daily).
 #  Once in place and readable, run
 #   sudo launchctl load ${HOME}/Library/LaunchAgents/com.getchannels.transcode-plex.plist
@@ -56,8 +56,9 @@ if [ ! "$(which realpath)" ] ; then
   echo "Some functionality of this software will be absent if realpath is not installed."
   echo "On most systems this can be installed as part of the coreutils package"
   echo "Specifically, searching for files based on filename, something that most users do not use, will fail."
-  echo "If you have problems, then please set up an alias in ~/.bashrc, ~/.profile (or your system equivalent) thus:"
+  echo "If you have problems finding it, then please set up an alias in ~/.bashrc, ~/.profile (or your system equivalent) thus:"
   echo "alias realpath='[[ \$1 = /* ]] && echo \"\$1\" || printf \"%s/\${1#./}\" \${PWD}'"
+  echo "This is not guaranteed to work."
   echo "Alternatively, ensure that TRANSCODE_DB is set in prefs, and do not run channels-transcoder.sh and search based on filenames."
 fi
 
