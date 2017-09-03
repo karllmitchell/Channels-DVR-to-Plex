@@ -7,14 +7,14 @@
 # Pre-requisites:
 #  Curl (for accessing web resources)
 #  jq (for processing JSON databases)
-#  realpath (part of coreutils)
+#  realpath (note that this is not available on the Mac, in which case the install script will add an alias to simulate it)
 # Optional pre-requisites:
 #  An IFTTT Maker Key for phone status notifications.
 #  FFMPEG (a part of channels DVR, so you already have a copy, but you can use your own if you like) for commercial trimming/marking
 #  Parallel (GNU software for parallel processing; Can run jobs in parallel across cores, processors or even computers if set up correctly)
 #  AtomicParsley (software for writing iTunes tags) >= 0.9.6 recommended
 # Unix prerequisites for above packages (use e.g. apt-get/macports), in case you're compiling manually:
-#  autoconf automake libtool pkgconfig argtable sdl coreutils curl jq AtomicParsley
+#  autoconf automake libtool pkgconfig argtable sdl coreutils curl ffmpeg realpath jq AtomicParsley
 # MAC OS: Run with launchd at ~/Library/LaunchAgents/com.getchannels.transcode-plex.plist.  Edit to change when it runs (default = 12:01am daily).
 #  Once in place and readable, run
 #   sudo launchctl load ${HOME}/Library/LaunchAgents/com.getchannels.transcode-plex.plist
@@ -54,12 +54,10 @@ DEBUG=0
 # An alias suggested for those that do not have it.
 if [ ! "$(which realpath)" ] ; then
   echo "Some functionality of this software will be absent if realpath is not installed."
-  echo "On most systems this can be installed as part of the coreutils package"
   echo "Specifically, searching for files based on filename, something that most users do not use, will fail."
-  echo "If you have problems finding it, then please set up an alias in ~/.bashrc, ~/.profile (or your system equivalent) thus:"
+  echo "If you have problems, then please set up an alias in /etc/bashrc (or your system equivalent) thus:"
   echo "alias realpath='[[ \$1 = /* ]] && echo \"\$1\" || printf \"%s/\${1#./}\" \${PWD}'"
-  echo "This is not guaranteed to work."
-  echo "Alternatively, ensure that TRANSCODE_DB is set in prefs, and do not run channels-transcoder.sh and search based on filenames."
+  echo "Alternatively, ensure that TRANSCODE_DB is set in prefs, and that if SOURCE_FILE used it is done so correctly."
 fi
 
 
@@ -79,24 +77,26 @@ if [[ ! -d "$DIR" ]]; then DIR="$PWD"; fi
 
 # Finds preferences file, sources it, then sets preferences directory
 if [ ! "${SOURCE_PREFS}" ]; then
-  for i in "${HOME}/Library/Application Support/${BN}/prefs" "${HOME}/.${BN}/prefs" "${HOME}/.transcode-plex/prefs" \
-    "${HOME}/Library/Application Support/transcode-plex/prefs" ; do
+  for i in "${HOME}/.${BN}/prefs" "${HOME}/.transcode-plex/prefs" \
+    "${HOME}/Library/Application Support/${BN}/prefs" "${HOME}/Library/Application Support/transcode-plex/prefs" ; do
     if [ -f "${i}" ]; then SOURCE_PREFS="${i}"; break ; fi
   done
 fi
 
 if [ "${SOURCE_PREFS}" ]; then
   # spellcheck source=/dev/null
-  [ "${TRANSCODE_DB}" ] || TRANSCODE_DB="$(realpath "$(dirname channels-transcoder.sh)")"/transcode.db  
+  PREFS_DIR="$(dirname "${SOURCE_PREFS}")"
+  PREFS_DIR="$(realpath "${PREFS_DIR}")"
   [ "$DEBUG" -eq 1 ] && echo "SOURCE_PREFS=${SOURCE_PREFS}"
   source "${SOURCE_PREFS}" || ( echo "Couldn't read SOURCE_PREFS=${SOURCE_PREFS}."; exit 1 )
 else
   echo "Cannot find preferences file.  Example at: https://github.com/karllmitchell/Channels-DVR-to-Plex/"
   exit 1
 fi
-
- # Re-reads initation variables to over-ride any global variables set on the command line
-if [ $# -gt 0 ] ; then
+[ "${DEBUG}" -eq 1 ] && echo "PREFS_DIR=${PREFS_DIR}"
+ 
+# Re-reads initation variables to over-ride any global variables set on the command line
+if [[ $# -gt 0 ]] ; then
   for var in "$@"; do
     regex="(.*)=(.*)"
     if [[ "${var}" =~ (.*)=(.*) ]] ; then
@@ -114,7 +114,6 @@ if [ $# -gt 0 ] ; then
   done
 fi
 
-[ "${DEBUG}" -eq 1 ] && echo "TRANSCODE_DB=${TRANSCODE_DB}"
 
 ## REPORT PROGRESS, OPTIONALLY VIA PHONE NOTIFICATIONS
 # Customise if you have an alternative notification system
@@ -192,15 +191,21 @@ fi
 
 [ "${DEBUG}" -eq 1 ] && echo "All required programs found."
    
+   
 
 
 ## CHECK FOR AND INITIATE TRANSCODE DATABASE IF NECESSARY
+[ "${TRANSCODE_DB}" ] || TRANSCODE_DB="${PREFS_DIR}/transcode.db"
 if [ ! -f "${TRANSCODE_DB}" ] || [ "${CLEAR_DB}" -eq 1 ] ; then
   [ "${DAYS}" ] || DAYS=0
+  if [ ! -w "${TRANSCODE_DB}" ] ; then
+    notify_me "Cannot write to ${TRANSCODE_DB}, using ${HOME}/.${BN}/transcode.db instead"
+    TRANSCODE_DB="${HOME}/.${BN}/transcode.db"
+  fi 
   if [ "$(uname)" == "Darwin" ]; then since=$(date -v-${DAYS}d +%FT%H:%M); else since=$(date -d "$(date) - ${DAYS} days" +%FT%H:%M); fi
-  [ "${DEBUG}" -eq 1 ] && echo "(Re-)initialising database with recordings up to ${since}.  Using ${CURL_CLI} and ${JQ_CLI}."
+  [ "${DEBUG}" -eq 1 ] && echo "Initiating database with recordings up to ${since}.  Using ${CURL_CLI} and ${JQ_CLI}."
   "${CURL_CLI}" -s "${CHANNELS_DB}" | "${JQ_CLI}" -r '.[] | select ((.Airing.Raw.endTime < "'"$since"'")) | {ID} | join(" ") ' > "${TRANSCODE_DB}"
-  notify_me "Transcode database (re-)initialised at ${TRANSCODE_DB}"
+  notify_me "Transcode database initialised at ${TRANSCODE_DB}"
 fi
 if [ ! -w "${TRANSCODE_DB}" ] ; then
   notify_me "Cannot write to ${TRANSCODE_DB}.  I give up!"
@@ -300,20 +305,37 @@ function transcode {
   # Check if deleted
   [ "$(${JQ_CLI} -r '.Deleted' < "${1}.json")" == "true" ] && ( echo "${bname} already deleted."; return 3 )
   
-  # Identify type of file based on filename
-  regex="([0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{4})\ (.*)\ ([0-9]{4}-[0-9]{2}-[0-9]{2})\ [sS]([0-9]{2})[eE]([0-9]{2})\ (.*)\.(mp4|mkv|mpg|ts|m4v)"
+  
+  # Identify type of file based on filename: TV Show with title
+  regex="(.*)\ [sS]([0-9]{2})[eE]([0-9]{2})\ ([0-9]{4}-[0-9]{2}-[0-9]{2})\ (.*)\ ([0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{4})\.(mp4|mkv|mpg|ts|m4v)"
   if [[ "${fname}" =~ ${regex} ]]; then
     rectype="TV Show"
-    #recdate="${BASH_REMATCH[1]}"
-    showname="${BASH_REMATCH[2]}"
-    #transdate="${BASH_REMATCH[3]}"
-    season="${BASH_REMATCH[4]}"
-    episode="${BASH_REMATCH[5]}"
-    title="${BASH_REMATCH[6]}"
+    showname="${BASH_REMATCH[1]}"
+    season="${BASH_REMATCH[2]}"
+    episode="${BASH_REMATCH[3]}"
+    #recdate="${BASH_REMATCH[4]}"
+    title="${BASH_REMATCH[5]}"
+    #rectime="${BASH_REMATCH[6]}"
     extension="${BASH_REMATCH[7]}"
     [ "$(type "showname_clean" | grep -s function)" ] && showname="$(showname_clean "${showname}")"
     bname="${showname} - S${season}E${episode} - ${title}"
   fi
+  
+  # Identify type of file based on filename: TV Show without title
+  regex="(.*)\ [sS]([0-9]{2})[eE]([0-9]{2})\ ([0-9]{4}-[0-9]{2}-[0-9]{2})\ ([0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{4})\.(mp4|mkv|mpg|ts|m4v)"
+  if [[ "${fname}" =~ ${regex} ]]; then
+    rectype="TV Show"
+    showname="${BASH_REMATCH[1]}"
+    season="${BASH_REMATCH[2]}"
+    episode="${BASH_REMATCH[3]}"
+    #recdate="${BASH_REMATCH[4]}"
+    #rectime="${BASH_REMATCH[5]}"
+    extension="${BASH_REMATCH[6]}"
+    [ "$(type "showname_clean" | grep -s function)" ] && showname="$(showname_clean "${showname}")"
+    bname="${showname} - S${season}E${episode} - ${title}"
+  fi
+  
+  # Identify type of file based on filename: Movie
   regex="(.*)\ \(([0-9]{4})\)\ ([0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{4})\.(mp4|mkv|mpg|ts|m4v)"
   if [[ "${fname}" =~ ${regex} ]]; then
     rectype="Movie"
