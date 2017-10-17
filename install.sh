@@ -32,7 +32,7 @@ datadir="$(curl -s "http://${host_name}/system" | jq -r '.pwd')"
 [ -d "${datadir}" ] || echo " Channels DVR API not present at defined host.  Is Channels DVR installed?" && prfail=1
 idir="$(dirname "$datadir")"
 
-[ ! "$(which ffmpeg)" ] && [ ! -f "${idir}/latest/ffmpeg" ] && echo " ffmpeg not installed." && prfail=1 
+[ ! "$(which ffmpeg)" ] && [ ! -f "${idir}/latest/ffmpeg" ] && echo " ffmpeg not installed, or is inaccessible (ensure that "which ffmpeg" works before trying again)." && prfail=1 
 [ ! "$(which wget)" ] && echo " wget not installed." && prfail=1 
 [ ! "$(which jq)" ] && echo " jq not installed." && prfail=1 
 [ ! "$(which curl)" ] && echo " curl not installed." && prfail=1 
