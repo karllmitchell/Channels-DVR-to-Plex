@@ -37,7 +37,6 @@
 # You can deliver to iTunes (only recommended if you have tagging working) rather than to a Plex-compatible structure, thus:
 #  ITUNES_AUTO="${HOME}/Music/iTunes/iTunes Media/Automatically Add to iTunes.localized"  
 #  channels-transcoder.sh DEST_DIR="" BACKUP_DIR="${ITUNES_AUTO}"
-# 
 
 ## PREFERENCES FOR SYSTEM CONFIGURATION
 # The preferences file is normally called "prefs", and is typically placed in ~/.transcode-plex/prefs or ~/.channels-transcoder/prefs
@@ -107,8 +106,8 @@ if [[ $# -gt 0 ]] ; then
     else
       case $var in
         ''|*[0-9]*) apilist+="${var} " ;;
-	*.*) filelist+="${var} " ;;
-	*) echo "Cannot interpret argument: ${var}";;
+	      *.*) filelist+="${var} " ;;
+	      *) echo "Cannot interpret argument: ${var}";;
       esac
     fi
   done
@@ -191,7 +190,6 @@ fi
 
 [ "${DEBUG}" -eq 1 ] && echo "All required programs found."
    
-   
 
 
 ## CHECK FOR AND INITIATE TRANSCODE DATABASE IF NECESSARY
@@ -225,20 +223,22 @@ function ap_tagger {
   # Build some tags
   AP_OPTS=()
 
-  if [ "${subtype}" == "Series" ]; then
-    AP_OPTS+=(--genre "TV Shows" --stik "TV Show")
-    showname="$(${JQ_CLI} -r '.Airing.Title' < "${1}.json")"
-    [ "$(type "showname_clean" | grep -s function)" ] && showname="$(showname_clean "${showname}")"
-    AP_OPTS+=(--TVShowName "${showname}")
-    AP_OPTS+=(--title "$(${JQ_CLI} -r '.Airing.EpisodeTitle' < "${1}.json")")
-    season="$(printf "%.02d" "$(jq -r '.Airing.SeasonNumber' < "${1}.json")")"
-    episode="$(printf "%.02d" "$(jq -r '.Airing.EpisodeNumber' < "${1}.json")")"
-    AP_OPTS+=(--TVEpisode "${season}${episode}" --TVEpisodeNum "${episode}" --TVSeason "${season}")   
-  fi
-  if [ "${subtype}" == "Feature Film" ]; then
-    AP_OPTS+=(--genre "Movies" --stik "Movie")
-    AP_OPTS+=(--title "$(${JQ_CLI} -r '.title' < "${1}.json")")
-  fi
+  case "$(jq -r '.Airing.Raw.program.subType' < "${1}.json")" in
+  	"Series")
+	    AP_OPTS+=(--genre "TV Shows" --stik "TV Show")
+  	  showname="$(${JQ_CLI} -r '.Airing.Title' < "${1}.json")"
+    	[ "$(type "showname_clean" | grep -s function)" ] && showname="$(showname_clean "${showname}")"
+	    AP_OPTS+=(--TVShowName "${showname}")
+  	  AP_OPTS+=(--title "$(${JQ_CLI} -r '.Airing.EpisodeTitle' < "${1}.json")")
+    	season="$(printf "%.02d" "$(jq -r '.Airing.SeasonNumber' < "${1}.json")")"
+	    episode="$(printf "%.02d" "$(jq -r '.Airing.EpisodeNumber' < "${1}.json")")"
+  	  AP_OPTS+=(--TVEpisode "${season}${episode}" --TVEpisodeNum "${episode}" --TVSeason "${season}")   
+  	  ;;
+		*)
+	    AP_OPTS+=(--genre "Movies" --stik "Movie")
+  	  AP_OPTS+=(--title "$(${JQ_CLI} -r '.Airing.Title' < "${1}.json")")
+  	  ;;
+  esac
   
   AP_OPTS+=(--geID "$(${JQ_CLI} -r '.Airing.Genres[0]' < "${1}.json")")
   AP_OPTS+=(--contentRating "$(${JQ_CLI} -r '.Airing.Raw.ratings[0].code' < "${1}.json")")
@@ -286,7 +286,7 @@ function transcode {
       apvers=$("${AP_CLI}" | grep version)
       if [[ "${apvers}" =~ ${regex} ]]; then
         [ "$(ver "${BASH_REMATCH[2]}")" -lt "$(ver "0.9.6")" ] && notify_me "Old version of AtomicParsley detected. If tagging fails, upgrade recommended."
-	exit 9
+	      exit 9
       else
         notify_me "Cannot determine version of AtomicParsley. If tagging fails, upgrade recommended"
       fi
@@ -295,57 +295,35 @@ function transcode {
   
   # Get filename
   "${CURL_CLI}" -s "${CHANNELS_DB}/${1}" > "${1}.json"
-  "${CURL_CLI}" -s "${CHANNELS_DB}/${1}/mediainfo.json" > "${1}_mi.json"
-  
+  "${CURL_CLI}" -s "${CHANNELS_DB}/${1}/mediainfo.json" > "${1}_mi.json"  
   ifile="${SOURCE_DIR}/$(${JQ_CLI} -r '.Path' < "${1}.json")"
   [ "${DEBUG}" -eq 1 ] && echo "Source location: ${ifile}"
   fname=$(basename "${ifile}")	    # Name of original file
   bname="${fname%.*}"		    # Name of original file minus extension
+  extension="${fname##*.}"  # Name of extension
 
   # Check if deleted
   [ "$(${JQ_CLI} -r '.Deleted' < "${1}.json")" == "true" ] && ( echo "${bname} already deleted."; return 3 )
   
-  
-  # Identify type of file based on filename: TV Show with title
-  regex="(.*)\ [sS]([0-9]{2})[eE]([0-9]{2})\ ([0-9]{4}-[0-9]{2}-[0-9]{2})\ (.*)\ ([0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{4})\.(mp4|mkv|mpg|ts|m4v)"
-  if [[ "${fname}" =~ ${regex} ]]; then
-    rectype="TV Show"
-    showname="${BASH_REMATCH[1]}"
-    season="${BASH_REMATCH[2]}"
-    episode="${BASH_REMATCH[3]}"
-    #recdate="${BASH_REMATCH[4]}"
-    title="${BASH_REMATCH[5]}"
-    #rectime="${BASH_REMATCH[6]}"
-    extension="${BASH_REMATCH[7]}"
-    [ "$(type "showname_clean" | grep -s function)" ] && showname="$(showname_clean "${showname}")"
-    bname="${showname} - S${season}E${episode} - ${title}"
-  fi
-  
-  # Identify type of file based on filename: TV Show without title
-  regex="(.*)\ [sS]([0-9]{2})[eE]([0-9]{2})\ ([0-9]{4}-[0-9]{2}-[0-9]{2})\ ([0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{4})\.(mp4|mkv|mpg|ts|m4v)"
-  if [[ "${fname}" =~ ${regex} ]]; then
-    rectype="TV Show"
-    showname="${BASH_REMATCH[1]}"
-    season="${BASH_REMATCH[2]}"
-    episode="${BASH_REMATCH[3]}"
-    #recdate="${BASH_REMATCH[4]}"
-    #rectime="${BASH_REMATCH[5]}"
-    extension="${BASH_REMATCH[6]}"
-    [ "$(type "showname_clean" | grep -s function)" ] && showname="$(showname_clean "${showname}")"
-    bname="${showname} - S${season}E${episode} - ${title}"
-  fi
-  
-  # Identify type of file based on filename: Movie
-  regex="(.*)\ \(([0-9]{4})\)\ ([0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{4})\.(mp4|mkv|mpg|ts|m4v)"
-  if [[ "${fname}" =~ ${regex} ]]; then
-    rectype="Movie"
-    showname="${BASH_REMATCH[1]}"
-    year="${BASH_REMATCH[2]}"
-    #recdate="${BASH_REMATCH[3]}"
-    extension="${BASH_REMATCH[4]}"
-    bname="${showname} (${year})"
-  fi
-  [ ! "${rectype}" ] && echo "Cannot identify type of file based on filename."
+	# Extract recording information from API to construct output filename in Plex-friendly format.
+  case "$(jq -r '.Airing.Raw.program.subType' < "${1}.json")" in
+  	"Series")
+  		rectype="TV Show"
+			showname="$(${JQ_CLI} -r '.Airing.Title' < "${1}.json")"
+			season="$(${JQ_CLI} -r '.Airing.SeasonNumber' < "${1}.json" | xargs printf "%02g" )"
+			episode="$(${JQ_CLI} -r '.Airing.EpisodeNumber' < "${1}.json" | xargs printf "%02g" )"
+			title="$(${JQ_CLI} -r '.Airing.EpisodeTitle' < "${1}.json")"
+			[ "$(type "showname_clean" | grep -s function)" ] && showname="$(showname_clean "${showname}")"
+			bname="${showname} - S${episode}E${number} - ${title}"
+			year="$(${JQ_CLI} -r '.Airing.Raw.program.releaseYear' < "${1}.json")"
+			;;
+		*)
+			rectype="Movie"
+			showname="$(${JQ_CLI} -r '.Airing.Title' < "${1}.json")"
+		  bname="${showname}"
+			year="$(${JQ_CLI} -r '.Airing.Raw.program.releaseYear' < "${1}.json")"
+			;;
+  esac
 
   # Determine if input file already available on local system.  Download via API if not.
   fname="${1}.${extension}"
@@ -371,12 +349,10 @@ function transcode {
 
   # ... or is being created to in parallel
   [ "${TMP_PREFIX}" ] && [ "$(lsof 2>&1 | grep -s "${1}.m4v" | grep "ffmpeg" | grep "${TMP_PREFIX}")" ] && notify_me "${bname} transcoding already underway" && return 1
-
-  # Looks to see if we have direct access to comskip logs
-  comskipped="$(jq -r 'select (( .Commercials[0] )) | {ID} | join (" ")' < "${1}.json" )"
   
   
   # COMMERCIAL TRIMMING (optional)
+  comskipped="$(jq -r 'select (( .Commercials[0] )) | {ID} | join (" ")' < "${1}.json" )"  # Has comskip been run successfully?
   [ "${comskipped}" -ne "${1}" ] && [ "${COMTRIM}" -eq 1 ] && notify_me "${bname}: Cannot be comtrimmed due to lack of comskip results"
   if [ "${COMTRIM}" -eq 1 ] && [ "${comskipped}" -eq "${1}" ]; then
     # Perform the actual file splitting
@@ -404,21 +380,24 @@ function transcode {
   # Tag with metadata
   echo ";FFMETADATA1" > "${1}.ffmeta"
   echo hd_video=${hdvideo} >> "${1}.ffmeta"
-  if [ "${rectype}" == "Movie" ]; then
-    echo media_type=9 >> "${1}.ffmeta"
-    echo title=${showname} >> "${1}.ffmeta"
-    echo date=${year} >> "${1}.ffmeta"
-  fi
-  if [ "${rectype}" == "TV Show" ]; then
-    echo media_type=10 >> "${1}.ffmeta"
-    echo title=${title} >> "${1}.ffmeta"
-    echo show=${showname} >> "${1}.ffmeta"
-    echo episode_id=${episode} >> "${1}.ffmeta"
-    echo season_number=${season} >> "${1}.ffmeta"
-    channel="$(${JQ_CLI} -r '.Airing.Channel' < "${1}.json")"
-    network="$("${CURL_CLI}" -s "${CHANNELS_DB}/../guide/channels" | "${JQ_CLI}" -r '.[] | select(.Number=="'"$channel"'") | .Name')" 
-    echo network=${network} >> "${1}.ffmeta"
-  fi
+	
+	case "$(jq -r '.Airing.Raw.program.subType' < "${1}.json")" in
+  	"Series")
+    	echo media_type=10 >> "${1}.ffmeta"
+    	echo title=${title} >> "${1}.ffmeta"
+    	echo show=${showname} >> "${1}.ffmeta"
+    	echo episode_id=${episode} >> "${1}.ffmeta"
+    	echo season_number=${season} >> "${1}.ffmeta"
+    	channel="$(${JQ_CLI} -r '.Airing.Channel' < "${1}.json")"
+    	network="$("${CURL_CLI}" -s "${CHANNELS_DB}/../guide/channels" | "${JQ_CLI}" -r '.[] | select(.Number=="'"$channel"'") | .Name')" 
+    	echo network=${network} >> "${1}.ffmeta"
+			;;
+    *)
+	    echo media_type=9 >> "${1}.ffmeta"
+	    echo title=${showname} >> "${1}.ffmeta"
+  	  echo date=${year} >> "${1}.ffmeta"
+      ;;
+	esac
   echo comment="$(${JQ_CLI} -r '.Airing.Raw.program.shortDescription' < "${1}.json")" >> "${1}.ffmeta"
   echo synopsis="$(${JQ_CLI} -r '.Airing.Raw.program.longDescription' < "${1}.json")" >> "${1}.ffmeta"
 
@@ -428,7 +407,6 @@ function transcode {
   
   # Add album artwork if available: placeholder, as feature is currently unsupported by ffmpeg, although is a requested feature)
   # For now, you'll need AtomicParsley for this.
-  
   #"${CURL_CLI}" -o ${1}.jpg "$(${JQ_CLI} -r '.Airing.Image' < "${1}.json")"
   #[ -s "${1}.ffmeta" ] 
   #[ -s "${1}.jpg" ] && FFMPEG_OPTS+=(-i "${1}.jpg" )
@@ -456,7 +434,7 @@ function transcode {
   # The actual transcoding command!  Requires Channels DVR >= 2017.04.13.0150
   "${FFMPEG_CLI}" -hide_banner -i "${fname}" "${FFMPEG_OPTS[@]}" "${1}.m4v" || ( notify_me "${bname} transcode failed." ; return 6 )
   rm -f "${fname}" # Delete tmp input file/link  
-
+	
 
   # TAG THE FILE FOR ITUNES
   # This adds episode artwork, content rating, production date and a fake cnID tag which effectively enables production of SD-HD files if desired
@@ -492,7 +470,8 @@ transcode_jobs="$(pgrep -fa "/bin/bash channels-transcoder.sh" | grep -vw $$ | g
 channels_busy="$(curl -s "${CHANNELS_DB}/../../dvr" | jq '.busy')"         # Check to see if Channels DVR is busy
 
 # Loop until no transcoding jobs, channels is no longer busy, or timeout.  Default is about a day.
-if [ "${BUSY_WAIT}" -eq 1 ] && ( [ "${channels_busy}" == true ] || [ "${transcode_jobs}" -ge 1 ] ) ; then  
+if [ "${BUSY_WAIT}" -eq 1 ] && [ "${transcode_jobs}" -ge 1 ] ; then  
+#if [ "${BUSY_WAIT}" -eq 1 ] && ( [ "${channels_busy}" == true ] || [ "${transcode_jobs}" -ge 1 ] ) ; then  
   [ "${TIMEOUT}" ] || TIMEOUT=82800
   delay="${TIMEOUT} seconds" ; [ "${TIMEOUT}" -ge 60 ] && delay="$((TIMEOUT/60)) minutes" ; [ "${TIMEOUT}" -ge 3600 ] && delay="$((TIMEOUT/3600)) hours"
   TIMER=0
