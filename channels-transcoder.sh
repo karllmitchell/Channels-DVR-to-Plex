@@ -314,7 +314,7 @@ function transcode {
 			episode="$(${JQ_CLI} -r '.Airing.EpisodeNumber' < "${1}.json" | xargs printf "%02g" )"
 			title="$(${JQ_CLI} -r '.Airing.EpisodeTitle' < "${1}.json")"
 			[ "$(type "showname_clean" | grep -s function)" ] && showname="$(showname_clean "${showname}")"
-			bname="${showname} - S${episode}E${number} - ${title}"
+			bname="${showname} - S${season}E${episode} - ${title}"
 			year="$(${JQ_CLI} -r '.Airing.Raw.program.releaseYear' < "${1}.json")"
 			;;
 		*)
